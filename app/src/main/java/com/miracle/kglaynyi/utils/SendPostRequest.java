@@ -40,6 +40,21 @@ public class SendPostRequest {
 
     private static String nextPageToken = "";
     private static int pageIndex = 0;
+    private static int scannedVideoCount = 0;
+
+    public static synchronized void resetPagingState() {
+        nextPageToken = "";
+        pageIndex = 0;
+        scannedVideoCount = 0;
+    }
+
+    public static synchronized int getScannedVideoCount() {
+        return scannedVideoCount;
+    }
+
+    private static synchronized void markVideoScanned() {
+        scannedVideoCount++;
+    }
 //    private static int retryLimit = 3;
 
 
@@ -211,8 +226,8 @@ public class SendPostRequest {
 
                 }
             }
-        } catch (IOException e) {
-            System.out.println("IOExceptio Occured in gdIndex");
+        } catch (Exception e) {
+            System.out.println("Exception in GDIndex: " + e);
         }
 
     }
@@ -263,6 +278,10 @@ public class SendPostRequest {
             int code = conn.getResponseCode();
             System.out.println(("HTTP CODE" + code));
 
+            if (code == HttpURLConnection.HTTP_OK && br == null) {
+                br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                failed = false;
+            }
 
             int tryCount = 0;
             while ((code != 200 || failed) && tryCount < 10) {
@@ -280,6 +299,7 @@ public class SendPostRequest {
                 conn.getOutputStream().write(postDataBytes);
                 try {
                     br = new BufferedReader(new InputStreamReader(conn.getInputStream() , StandardCharsets.UTF_8));
+                    failed = false;
                 } catch (FileNotFoundException e) {
                     failed = true;
                     System.out.println("Failed in the retry attempt" + e);
@@ -329,8 +349,8 @@ public class SendPostRequest {
                     Log.i("Folder" , folders.get(i));
                 }
             }
-        } catch (IOException e) {
-            System.out.println("Exception in Goindex");
+        } catch (Exception e) {
+            System.out.println("Exception in GoIndex: " + e);
         }
 
 
@@ -446,8 +466,8 @@ public class SendPostRequest {
                     Log.i("Folder" , folders.get(i));
                 }
             }
-        } catch (IOException e) {
-            System.out.println("Exception in maple");
+        } catch (Exception e) {
+            System.out.println("Exception in MapleIndex: " + e);
         }
 
 
@@ -565,8 +585,8 @@ public class SendPostRequest {
                     Log.i("Folder" , folders.get(i));
                 }
             }
-        } catch (IOException e) {
-            System.out.println("Exception in simple");
+        } catch (Exception e) {
+            System.out.println("Exception in SimpleProgram: " + e);
         }
 
 
@@ -579,11 +599,8 @@ public class SendPostRequest {
                 System.out.println("Files from the index" + files);
                 for (int i = 0; i < files.size(); i++) {
                     File file = files.get(i);
-                    if (file.getMimeType().equals("video/x-matroska")
-                            || file.getMimeType().equals("video/mp4")
-                            || file.getMimeType().equals("video/x-msvideo")
-                            || file.getMimeType().equals("video/mpeg")
-                            || file.getMimeType().equals("video/webm")) {
+                    if (isVideoFile(file)) {
+                        markVideoScanned();
                         boolean test = isAlreadyPresent(file.getId() , file.getModifiedTime());
 
                         if (!test) {
@@ -593,7 +610,7 @@ public class SendPostRequest {
                             if (callingMethodName.equals("postRequestSimpleProgramIndex")) {
                                 file.setUrlstring(generateDownloadLinkSimpleProgram(file.getId()));
                             } else {
-                                file.setUrlstring(urlString + file.getName());
+                                file.setUrlstring(appendPath(urlString, file.getName(), false));
                             }
 
 
@@ -622,8 +639,8 @@ public class SendPostRequest {
                             }
                         }
 
-                    } else if (file.getMimeType().equals("application/vnd.google-apps.folder")) {
-                        folders.add(urlString + file.getName() + "/");
+                    } else if (isFolder(file)) {
+                        folders.add(appendPath(urlString, file.getName(), true));
                     }
                 }
             } catch (NullPointerException e) {
@@ -634,24 +651,51 @@ public class SendPostRequest {
 
     }
 
+    private static boolean isVideoFile(File file) {
+        if (file == null) return false;
+        String mime = file.getMimeType();
+        if (mime != null && mime.toLowerCase().startsWith("video/")) return true;
+        String name = file.getName();
+        if (name == null) return false;
+        String lower = name.toLowerCase();
+        return lower.endsWith(".mkv") || lower.endsWith(".mp4") || lower.endsWith(".avi")
+                || lower.endsWith(".mov") || lower.endsWith(".m4v") || lower.endsWith(".webm")
+                || lower.endsWith(".mpeg") || lower.endsWith(".mpg") || lower.endsWith(".ts")
+                || lower.endsWith(".m2ts") || lower.endsWith(".3gp") || lower.endsWith(".wmv");
+    }
+
+    private static boolean isFolder(File file) {
+        return file != null && "application/vnd.google-apps.folder".equals(file.getMimeType());
+    }
+
+    private static String appendPath(String base, String name, boolean folder) {
+        if (base == null) base = "";
+        if (!base.endsWith("/")) base += "/";
+        if (name == null) name = "";
+        try {
+            String encoded = URLEncoder.encode(name, "UTF-8").replace("+", "%20").replace("%2F", "/");
+            return base + encoded + (folder ? "/" : "");
+        } catch (Exception e) {
+            return base + name + (folder ? "/" : "");
+        }
+    }
+
     private static boolean isAlreadyPresent(String id , Date modifiedTime) {
-        System.out.println("id to test " + id);
+        if (id == null || id.trim().isEmpty()) return false;
         Movie movie = DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByGdId(id);
         Episode episode = DatabaseClient.getInstance(context).getAppDatabase().episodeDao().findByGdId(id);
-        if (movie != null && modifiedTime.after(movie.getModifiedTime())) {
+
+        if (movie != null && modifiedTime != null && movie.getModifiedTime() != null
+                && modifiedTime.after(movie.getModifiedTime())) {
             DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
             return false;
         }
-        if (episode != null && modifiedTime.after(episode.getModifiedTime())) {
+        if (episode != null && modifiedTime != null && episode.getModifiedTime() != null
+                && modifiedTime.after(episode.getModifiedTime())) {
             DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByGdId(id);
             return false;
         }
-        if (movie == null && episode == null) {
-            System.out.println("not present in movies");
-            return false;
-        } else {
-            return true;
-        }
+        return movie != null || episode != null;
     }
 
     private static String generateDownloadLinkSimpleProgram(String id) {
@@ -690,11 +734,8 @@ public class SendPostRequest {
             try {
                 for (int i = 0; i < files.size(); i++) {
                     File file = files.get(i);
-                    if (file.getMimeType().equals("video/x-matroska")
-                            || file.getMimeType().equals("video/mp4")
-                            || file.getMimeType().equals("video/x-msvideo")
-                            || file.getMimeType().equals("video/mpeg")
-                            || file.getMimeType().equals("video/webm")) {
+                    if (isVideoFile(file)) {
+                        markVideoScanned();
 
                         boolean test = isAlreadyPresent(file.getId() , file.getModifiedTime());
 
@@ -703,7 +744,7 @@ public class SendPostRequest {
                             if (callingMethodName.equals("postRequestSimpleProgramIndex")) {
                                 file.setUrlstring(generateDownloadLinkSimpleProgram(file.getId()));
                             } else {
-                                file.setUrlstring(urlString + file.getName());
+                                file.setUrlstring(appendPath(urlString, file.getName(), false));
                             }
                             Episode episode = gson.fromJson(file.toString() , Episode.class);
                             episode.setFileName(file.getName());
@@ -716,8 +757,8 @@ public class SendPostRequest {
                         }
 
 
-                    } else if (file.getMimeType().equals("application/vnd.google-apps.folder")) {
-                        showFolders.add(urlString + file.getName() + "/");
+                    } else if (isFolder(file)) {
+                        showFolders.add(appendPath(urlString, file.getName(), true));
                         Log.i("showFolders" , showFolders + file.getName());
                     }
                 }
@@ -1016,7 +1057,7 @@ public class SendPostRequest {
 //                    file.setUrlstring(url+file.getName());
 //                    sendGet2(file);
 //                    DatabaseClient.getInstance(mCtx).getAppDatabase().fileDao().insert(target.data.files.get(i));
-//                }else if( file.getMimeType().equals("application/vnd.google-apps.folder")){
+//                }else if( isFolder(file)){
 //                    folders.add(url+file.getName()+"/");
 //                }
 //            }
