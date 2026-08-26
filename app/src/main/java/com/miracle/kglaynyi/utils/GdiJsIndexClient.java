@@ -169,10 +169,6 @@ public final class GdiJsIndexClient {
         Session session = login(baseUrl, username, password);
         if (!session.success) throw new IOException(session.message);
 
-        emit(listener, Progress.status("Preparing library for a clean metadata scan…", -1,
-                0, 0, 0, 0, 0, 0));
-        clearIndexMediaForRescan(indexId);
-
         emit(listener, Progress.status("Login verified. Discovering videos…", -1,
                 0, 0, 0, 0, 0, 0));
 
@@ -185,9 +181,14 @@ public final class GdiJsIndexClient {
 
         int total = videoEntries.size();
         if (total == 0) {
+            clearIndexMediaForRescan(indexId);
             emit(listener, Progress.done("Scan complete • 0 videos found", 0, stats[0], stats[1]));
             return 0;
         }
+
+        emit(listener, Progress.status("Discovery complete • rebuilding library…", -1,
+                0, total, total, stats[0], stats[1], total));
+        clearIndexMediaForRescan(indexId);
 
         emit(listener, Progress.status("Found " + total + " videos • processing 0/" + total,
                 0, 0, total, total, stats[0], stats[1], total));
