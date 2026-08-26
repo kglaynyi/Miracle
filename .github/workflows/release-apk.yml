@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Fixes TMDB poster/detail replacement, auto-detects episodic content, and separates Movies, TV Shows, and Anime."
+          NOTES="Keeps scan progress across tabs and rebuilds stale movie, TV, anime, poster, and TMDB metadata on refresh."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
           else
