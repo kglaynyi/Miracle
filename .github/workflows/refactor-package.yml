@@ -1,0 +1,116 @@
+name: Refactor Miracle Package
+
+on:
+  push:
+    paths:
+      - '.github/workflows/refactor-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Miracle
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Refactor package and add attribution
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+
+          old = 'com.theflexproject.thunder'
+          new = 'com.miracle.kglaynyi'
+
+          text_exts = {'.java', '.xml', '.gradle', '.json', '.properties', '.pro', '.md'}
+          for p in Path('app').rglob('*'):
+              if p.is_file() and p.suffix in text_exts:
+                  try:
+                      text = p.read_text()
+                  except UnicodeDecodeError:
+                      continue
+                  if old in text:
+                      p.write_text(text.replace(old, new))
+
+          build = Path('app/build.gradle')
+          text = build.read_text()
+          text = text.replace('applicationId "com.theflexproject.thunder"', 'applicationId "com.miracle.kglaynyi"')
+          if 'namespace "com.miracle.kglaynyi"' not in text:
+              text = text.replace('android {', 'android {\n    namespace "com.miracle.kglaynyi"', 1)
+          build.write_text(text)
+
+          manifest = Path('app/src/main/AndroidManifest.xml')
+          text = manifest.read_text().replace('package="com.theflexproject.thunder"', 'package="com.miracle.kglaynyi"')
+          manifest.write_text(text)
+
+          moves = [
+              (Path('app/src/main/java/com/theflexproject/thunder'), Path('app/src/main/java/com/miracle/kglaynyi')),
+              (Path('app/src/androidTest/java/com/theflexproject/thunder'), Path('app/src/androidTest/java/com/miracle/kglaynyi')),
+              (Path('app/src/test/java/com/theflexproject/thunder'), Path('app/src/test/java/com/miracle/kglaynyi')),
+              (Path('app/schemas/com.theflexproject.thunder.database.AppDatabase'), Path('app/schemas/com.miracle.kglaynyi.database.AppDatabase')),
+          ]
+          for src, dst in moves:
+              if src.exists():
+                  dst.parent.mkdir(parents=True, exist_ok=True)
+                  if dst.exists():
+                      shutil.rmtree(dst)
+                  shutil.move(str(src), str(dst))
+
+          # Remove now-empty old package parent directories where possible.
+          for d in [
+              Path('app/src/main/java/com/theflexproject'),
+              Path('app/src/androidTest/java/com/theflexproject'),
+              Path('app/src/test/java/com/theflexproject'),
+          ]:
+              if d.exists():
+                  try:
+                      d.rmdir()
+                  except OSError:
+                      pass
+
+          attribution = Path('ATTRIBUTION.md')
+          attribution.write_text('''# Attribution\n\nMiracle is based on the open-source **Thunder** Android project by **anujd64**.\n\n- Original project: https://github.com/anujd64/Thunder\n- Original author: anujd64\n- License: GNU General Public License v3.0 (GPL-3.0)\n\nThis repository contains modifications and rebranding made for the Miracle project. The original copyright and GPL-3.0 license terms remain applicable to the covered source code.\n''')
+
+          readme = Path('README.md')
+          if readme.exists():
+              text = readme.read_text()
+              credit = '''# Miracle\n\n> **Credit:** Miracle is based on [Thunder](https://github.com/anujd64/Thunder) by **anujd64** and remains licensed under the GNU GPL v3. See [ATTRIBUTION.md](ATTRIBUTION.md).\n\n'''
+              if not text.startswith('# Miracle'):
+                  readme.write_text(credit + text)
+          PY
+
+          if grep -R --exclude-dir=build --exclude='*.aar' --exclude='*.jar' -n 'com\.theflexproject\.thunder' app; then
+            echo 'Old package references remain.'
+            exit 1
+          fi
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Commit refactor
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No package changes to commit."
+          else
+            git commit -m "Refactor Android package to com.miracle.kglaynyi"
+            git push origin HEAD:main
+          fi
