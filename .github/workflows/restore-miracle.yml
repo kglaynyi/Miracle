@@ -76,3 +76,5 @@ jobs:
         run: |
           echo "Android source was restored, but the Gradle build still needs follow-up fixes."
           exit 1
+
+# trigger restoration run
