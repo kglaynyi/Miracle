@@ -7,7 +7,7 @@
 An Android app to stream and download your media stored in Google Drive in an Awesome way !!
 
 <p align="center">
-<a href="https://github.com/anujd64/Thunder/releases"><img src="https://img.shields.io/github/downloads/anujd64/Thunder/total?color=%233DDC84&logo=android&logoColor=%23fff&style=for-the-badge"></a>
+<a href="https://github.com/kglaynyi/Miracle/releases"><img src="https://img.shields.io/github/downloads/kglaynyi/Miracle/total?color=%233DDC84&logo=android&logoColor=%23fff&style=for-the-badge"></a>
 </p>
 
 If you feel like supporting me :
