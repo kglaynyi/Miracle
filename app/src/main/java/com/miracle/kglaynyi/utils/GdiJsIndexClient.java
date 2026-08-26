@@ -37,6 +37,9 @@ public final class GdiJsIndexClient {
     private static final int MAX_PAGES_PER_FOLDER = 1000;
     private static final int MAX_FOLDERS = 10000;
 
+    // GDI-JS routes drive #0 through /0:/ and redirects non-drive paths there.
+    private static final String DEFAULT_DRIVE_PREFIX = "0:/";
+
     private GdiJsIndexClient() {}
 
     public static final class Result {
@@ -75,9 +78,10 @@ public final class GdiJsIndexClient {
             Session session = login(baseUrl, username, password);
             if (!session.success) return Result.error(session.message);
 
-            ResFormat root = fetchPage(baseUrl, session.cookie, "", 0);
+            String apiRoot = getDefaultApiRoot(baseUrl);
+            ResFormat root = fetchPage(apiRoot, session.cookie, "", 0);
             if (root == null || root.getData() == null) {
-                return Result.error("Login succeeded, but the index API returned an invalid file list");
+                return Result.error("Login succeeded, but /0:/ returned an invalid file list");
             }
             return Result.ok();
         } catch (java.net.MalformedURLException e) {
@@ -97,9 +101,10 @@ public final class GdiJsIndexClient {
         Session session = login(baseUrl, username, password);
         if (!session.success) throw new IOException(session.message);
 
+        String apiRoot = getDefaultApiRoot(baseUrl);
         Set<String> visitedFolders = new HashSet<>();
         int[] counters = new int[]{0, 0}; // videos, folders
-        scanFolder(baseUrl, baseUrl, session.cookie, tvShows, indexId, visitedFolders, counters);
+        scanFolder(baseUrl, apiRoot, session.cookie, tvShows, indexId, visitedFolders, counters);
         return counters[0];
     }
 
@@ -219,13 +224,24 @@ public final class GdiJsIndexClient {
                     || code == HttpURLConnection.HTTP_FORBIDDEN) {
                 throw new IOException("GDI-JS session was rejected (HTTP " + code + ")");
             }
+            if (code >= 300 && code < 400) {
+                String location = conn.getHeaderField("Location");
+                throw new IOException("GDI-JS API redirected to " + (location == null ? "another page" : location));
+            }
             if (code < 200 || code >= 300) {
                 throw new IOException("Index returned HTTP " + code);
             }
 
-            JsonObject envelope;
+            String trimmed = response == null ? "" : response.trim();
+            if (trimmed.isEmpty()) {
+                throw new IOException("Index returned an empty file-list response");
+            }
+            if (trimmed.startsWith("<") || trimmed.toLowerCase().startsWith("<!doctype")) {
+                throw new IOException("Index returned HTML instead of JSON at " + urlString);
+            }
+
             try {
-                envelope = JsonParser.parseString(response).getAsJsonObject();
+                JsonObject envelope = JsonParser.parseString(trimmed).getAsJsonObject();
                 if (envelope.has("ok") && !envelope.get("ok").getAsBoolean()
                         && envelope.has("message")) {
                     throw new IOException(envelope.get("message").getAsString());
@@ -234,9 +250,14 @@ public final class GdiJsIndexClient {
                 // Parsed below as the normal ResFormat response.
             }
 
-            ResFormat result = new Gson().fromJson(response, ResFormat.class);
+            ResFormat result;
+            try {
+                result = new Gson().fromJson(trimmed, ResFormat.class);
+            } catch (Exception e) {
+                throw new IOException("GDI-JS returned malformed JSON at " + urlString, e);
+            }
             if (result == null || result.getData() == null) {
-                throw new IOException("Index returned an invalid file-list response");
+                throw new IOException("Index returned an invalid file-list response at " + urlString);
             }
             return result;
         } finally {
@@ -329,6 +350,10 @@ public final class GdiJsIndexClient {
         }
     }
 
+    private static String getDefaultApiRoot(String baseUrl) {
+        return baseUrl + DEFAULT_DRIVE_PREFIX;
+    }
+
     private static String normalizeBaseUrl(String raw) throws java.net.MalformedURLException {
         if (raw == null || raw.trim().isEmpty()) throw new java.net.MalformedURLException();
         String value = raw.trim();
@@ -336,7 +361,7 @@ public final class GdiJsIndexClient {
             throw new java.net.MalformedURLException();
         }
         if (!value.endsWith("/")) value += "/";
-        new URL(value); // validate
+        new URL(value);
         return value;
     }
 
