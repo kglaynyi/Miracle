@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/validate-v1016.yml'
       - '.github/fix_v1016.py'
+      - '.github/fix_v1016_escapes.py'
   workflow_dispatch:
 
 permissions:
@@ -38,7 +39,9 @@ jobs:
           fi
 
       - name: Apply v1.0.16 fixes
-        run: python3 .github/fix_v1016.py
+        run: |
+          python3 .github/fix_v1016.py
+          python3 .github/fix_v1016_escapes.py
 
       - name: Build and validate APK
         run: ./gradlew assembleDebug --stacktrace
