@@ -23,6 +23,7 @@
 
     <string-array name="index_types">
         <item>GDIndex</item>
+        <item>GDI-JS</item>
         <item>GoIndex</item>
         <item>MapleIndex</item>
         <item>SimpleProgram</item>
@@ -32,7 +33,6 @@
         <item>Movies</item>
         <item>TVShows</item>
     </string-array>
-    <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="update_available">Update Available</string>
     <string name="update">update</string>
