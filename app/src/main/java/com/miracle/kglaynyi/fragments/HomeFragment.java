@@ -106,6 +106,19 @@ public class HomeFragment extends BaseFragment {
 
     }
 
+    @Override
+    public void onResume() {
+    super.onResume();
+    if (getView() == null) return;
+    loadRecentlyAddedMovies();
+    loadRecentlyReleasedMovies();
+    loadTopRatedMovies();
+    loadLastPlayedMovies();
+    loadWatchlist();
+    loadNewSeason();
+    loadTopRatedShows();
+}
+
     private void loadWatchlist() {
         Thread thread = new Thread(new Runnable() {
             @Override

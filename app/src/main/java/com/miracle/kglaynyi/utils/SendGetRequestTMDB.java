@@ -118,9 +118,23 @@ public class SendGetRequestTMDB {
 
         else if (movie.getTitle() == null) {
             System.out.println("file with no tmdb info" + movie);
+            ensureFallbackMovieTitle(movie);
             DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
         }
     }
+
+    private static void ensureFallbackMovieTitle(Movie movie) {
+    if (movie == null || (movie.getTitle() != null && !movie.getTitle().trim().isEmpty())) return;
+    String name = movie.getFileName();
+    if (name == null || name.trim().isEmpty()) name = "Untitled Video";
+    int dot = name.lastIndexOf('.');
+    if (dot > 0) name = name.substring(0, dot);
+    name = name.replace('.', ' ').replace('_', ' ').trim();
+    while (name.contains("  ")) name = name.replace("  ", " ");
+    if (name.isEmpty()) name = "Untitled Video";
+    movie.setTitle(name);
+    movie.setOriginal_title(name);
+}
 
     private static String searchMovieOnTmdbByName(String titleExtracted , String yearExtracted) {
         StringBuilder response = new StringBuilder();
@@ -197,10 +211,13 @@ public class SendGetRequestTMDB {
 
         try {
             Gson gson = new Gson();
-            movie = gson.fromJson(responseById.toString() , Movie.class);
-        } catch (NumberFormatException e) {
-            System.out.println("NumberFormatException" + e);
-        }
+            Movie parsedMovie = gson.fromJson(responseById.toString(), Movie.class);
+        if (parsedMovie != null) movie = parsedMovie;
+        else ensureFallbackMovieTitle(movie);
+    } catch (Exception e) {
+        System.out.println("TMDB movie parse failed " + e);
+        ensureFallbackMovieTitle(movie);
+    }
 
 
         movie.setFileName(fileName);

@@ -4,6 +4,7 @@ import static com.miracle.kglaynyi.utils.IndexUtils.deleteIndex;
 import static com.miracle.kglaynyi.utils.IndexUtils.disableIndex;
 import static com.miracle.kglaynyi.utils.IndexUtils.enableIndex;
 import static com.miracle.kglaynyi.utils.IndexUtils.getNoOfMedia;
+import static com.miracle.kglaynyi.utils.IndexUtils.getScanProgress;
 import static com.miracle.kglaynyi.utils.IndexUtils.refreshIndex;
 
 import android.content.Context;
@@ -56,6 +57,7 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
             Context context = holder.itemView.getContext();
             holder.refreshIndex.setEnabled(false);
             holder.noOfMedia.setText("Connecting…");
+            if (holder.progressRunnable != null) mainHandler.postDelayed(holder.progressRunnable, 200);
 
             refreshIndex(context, t, progress -> {
                 if (progress.finished && !progress.error) {
@@ -100,6 +102,34 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
         });
     }
 
+    private void bindProgress(IndexViewHolder holder, IndexLink indexLink) {
+    if (holder.progressRunnable != null) mainHandler.removeCallbacks(holder.progressRunnable);
+    holder.boundIndexId = indexLink.getId();
+    holder.progressRunnable = new Runnable() {
+        @Override public void run() {
+            if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION || holder.boundIndexId != indexLink.getId()) return;
+            com.miracle.kglaynyi.utils.GdiJsIndexClient.Progress progress = getScanProgress(indexLink.getId());
+            if (progress != null && !progress.finished) {
+                holder.noOfMedia.setText(progress.message);
+                holder.refreshIndex.setEnabled(false);
+                mainHandler.postDelayed(this, 500);
+            } else if (progress != null && progress.error) {
+                holder.noOfMedia.setText(progress.message);
+                holder.refreshIndex.setEnabled(true);
+            } else {
+                holder.noOfMedia.setText(getNoOfMedia(holder.itemView.getContext(), indexLink) + " " + indexLink.getFolderType());
+                holder.refreshIndex.setEnabled(true);
+            }
+        }
+    };
+    holder.progressRunnable.run();
+}
+
+    @Override public void onViewRecycled(IndexViewHolder holder) {
+    if (holder.progressRunnable != null) mainHandler.removeCallbacks(holder.progressRunnable);
+    super.onViewRecycled(holder);
+}
+
     @Override
     public int getItemCount() {
         return indexLinkList == null ? 0 : indexLinkList.size();
@@ -111,6 +141,8 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
         ImageButton refreshIndex;
         ImageButton delete;
         SwitchCompat enableIndex;
+        Runnable progressRunnable;
+        int boundIndexId;
 
         public IndexViewHolder(View itemView) {
             super(itemView);

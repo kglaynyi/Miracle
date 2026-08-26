@@ -15,8 +15,22 @@ import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class IndexUtils {
+
+    private static final Map<Integer, GdiJsIndexClient.Progress> SCAN_PROGRESS = new ConcurrentHashMap<>();
+
+    public static GdiJsIndexClient.Progress getScanProgress(int indexId) {
+        return SCAN_PROGRESS.get(indexId);
+    }
+
+    private static void publishProgress(int indexId, GdiJsIndexClient.ProgressListener listener,
+                                        GdiJsIndexClient.Progress progress) {
+        SCAN_PROGRESS.put(indexId, progress);
+        if (listener != null) listener.onProgress(progress);
+    }
 
     public static boolean refreshIndex(Context mContext, IndexLink indexLink) {
         return refreshIndex(mContext, indexLink, null);
@@ -49,11 +63,11 @@ public class IndexUtils {
                 boolean tvShows = "TVShows".equals(folderType);
 
                 if ("GDI-JS".equals(indexType)) {
-                    GdiJsIndexClient.scan(link, user, pass, tvShows, id, listener);
+                    GdiJsIndexClient.scan(link, user, pass, tvShows, id, progress -> publishProgress(id, listener, progress));
                     return;
                 }
 
-                notifyProgress(listener, GdiJsIndexClient.Progress.status(
+                publishProgress(id, listener, GdiJsIndexClient.Progress.status(
                         "Refreshing index…", -1, 0, 0, 0, 0, 0, 0));
 
                 resetPagingState();
@@ -68,14 +82,14 @@ public class IndexUtils {
                 }
 
                 int count = getNoOfMedia(mContext, saved);
-                notifyProgress(listener, GdiJsIndexClient.Progress.done(
+                publishProgress(id, listener, GdiJsIndexClient.Progress.done(
                         "Refresh complete • " + count + " items", count, 0, count));
             } catch (Exception e) {
                 String message = e.getMessage();
                 if (message == null || message.trim().isEmpty()) {
                     message = e.getClass().getSimpleName();
                 }
-                notifyProgress(listener, GdiJsIndexClient.Progress.failed(
+                publishProgress(indexLink.getId(), listener, GdiJsIndexClient.Progress.failed(
                         "Refresh failed • " + message));
                 System.out.println("Index refresh failed: " + e);
             }

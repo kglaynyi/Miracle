@@ -175,7 +175,7 @@ public final class GdiJsIndexClient {
         List<VideoEntry> videoEntries = new ArrayList<>();
         int[] stats = new int[]{0, 0, 0}; // folders, files, videos
 
-        discoverFolder(apiRoot, session.cookie, visitedFolders, videoEntries, stats, listener);
+        discoverFolder(apiRoot, session.cookie, visitedFolders, videoEntries, stats, indexId, tvShows, listener);
 
         int total = videoEntries.size();
         if (total == 0) {
@@ -206,7 +206,7 @@ public final class GdiJsIndexClient {
 
     private static void discoverFolder(String folderUrl, String cookie,
                                        Set<String> visitedFolders, List<VideoEntry> videoEntries,
-                                       int[] stats, ProgressListener listener) throws Exception {
+                                       int[] stats, int indexId, boolean tvShows, ProgressListener listener) throws Exception {
         if (stats[0] >= MAX_FOLDERS) {
             throw new IOException("Index contains too many folders to scan safely");
         }
@@ -225,11 +225,12 @@ public final class GdiJsIndexClient {
                     if (file == null) continue;
                     if (isFolder(file)) {
                         String child = appendPath(folderUrl, file.getName(), true);
-                        discoverFolder(child, cookie, visitedFolders, videoEntries, stats, listener);
+                        discoverFolder(child, cookie, visitedFolders, videoEntries, stats, indexId, tvShows, listener);
                     } else {
                         stats[1]++;
                         if (isVideoFile(file)) {
                             stats[2]++;
+                            if (!tvShows) saveDiscoveredPlaceholder(folderUrl, file, indexId);
                             videoEntries.add(new VideoEntry(folderUrl, file));
                         }
                     }
@@ -366,6 +367,27 @@ public final class GdiJsIndexClient {
             conn.disconnect();
         }
     }
+
+    private static void saveDiscoveredPlaceholder(String folderUrl, File file, int indexId) {
+    if (file == null) return;
+    String gdId = file.getId();
+    Movie existing = (gdId == null || gdId.trim().isEmpty()) ? null :
+            DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByGdId(gdId);
+    if (existing != null) return;
+
+    Movie movie = new Movie();
+    movie.setFileName(file.getName());
+    movie.setMimeType(file.getMimeType());
+    movie.setModifiedTime(file.getModifiedTime());
+    movie.setSize(file.getSize());
+    movie.setUrlString(resolveFileUrl(folderUrl, folderUrl, file));
+    movie.setGd_id(gdId == null ? "" : gdId);
+    movie.setIndex_id(indexId);
+    String title = fallbackMovieTitle(file.getName());
+    movie.setTitle(title);
+    movie.setOriginal_title(title);
+    DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
+}
 
     private static void processVideo(String rootUrl, String folderUrl, File file,
                                      boolean tvShows, int indexId) {

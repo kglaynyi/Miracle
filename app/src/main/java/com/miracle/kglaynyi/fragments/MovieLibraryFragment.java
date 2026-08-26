@@ -46,19 +46,22 @@ public class MovieLibraryFragment extends BaseFragment {
         showLibraryMovies();
     }
 
+    @Override
+    public void onResume() {
+    super.onResume();
+    if (getView() != null) showLibraryMovies();
+}
+
     void showLibraryMovies() {
         setOnClickListner();
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 Log.i(" " , "in thread");
-                if(movieList ==null){
-
-                    movieList = DatabaseClient
+                movieList = DatabaseClient
                             .getInstance(mActivity)
                             .getAppDatabase()
                             .movieDao().getAll();
-                }
                 showRecyclerMovies(movieList);
             }
         });

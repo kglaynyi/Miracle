@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Adds TMDB metadata support using a build-time GitHub Actions secret, while keeping the API key out of the public source repository. Includes GDI-JS scanning and live scan progress improvements. Package: com.miracle.kglaynyi. Based on Thunder by anujd64 and distributed under GPL-3.0."
+          NOTES="Fixes movie/poster loading, persistent scan progress across tabs, and faster library updates during scanning."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
           else
