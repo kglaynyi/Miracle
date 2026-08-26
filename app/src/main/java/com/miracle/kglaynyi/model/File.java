@@ -10,6 +10,7 @@ public class File {
     public Date modifiedTime;
     public String size;
     public String urlString;
+    public String link;
 
     public String getUrlstring() {
         return urlString;
@@ -67,18 +68,21 @@ public class File {
         this.urlString = urlString;
     }
 
+    public String getLink() {
+        return link;
+    }
+
+    public void setLink(String link) {
+        this.link = link;
+    }
+
     @Override
     public String toString() {
         return
-//                "{" + "\"File\"" + ':' +
                 "{" +
-//                "\"id\"" + ':' + '\"' + id + '\"'  +
-//                ", \"name\"" + ':' + '\"' + name + '\"'  +
                 "\"mimeType\"" + ':' + '\"' + mimeType + '\"'  +
-//                ", \"modifiedTime\"" + ':' + '\"' + modifiedTime + '\"'  +
                 ", \"size\"" + ':' + '\"' + size + '\"'  +
                 ", \"urlString\"" + ':' + '\"' + urlString + '\"'  +
-                '}' ;
-//                        +"}";
+                '}';
     }
 }
