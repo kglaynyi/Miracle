@@ -7,6 +7,8 @@ import static com.miracle.kglaynyi.utils.IndexUtils.getNoOfMedia;
 import static com.miracle.kglaynyi.utils.IndexUtils.refreshIndex;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,130 +26,91 @@ import java.util.List;
 
 public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHolder> {
 
-    private Context mCtx;
-    private List<IndexLink> indexLinkList;
+    private final Context mCtx;
+    private final List<IndexLink> indexLinkList;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    public IndexAdapter(Context mCtx , List<IndexLink> indexLinkList) {
+    public IndexAdapter(Context mCtx, List<IndexLink> indexLinkList) {
         this.mCtx = mCtx;
         this.indexLinkList = indexLinkList;
     }
 
     @Override
-    public IndexViewHolder onCreateViewHolder(ViewGroup parent , int viewType) {
-        View view = LayoutInflater.from(mCtx).inflate(R.layout.index_item , parent , false);
+    public IndexViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(mCtx).inflate(R.layout.index_item, parent, false);
         return new IndexViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(IndexViewHolder holder , int position) {
+    public void onBindViewHolder(IndexViewHolder holder, int position) {
         IndexLink t = indexLinkList.get(position);
         holder.textViewLink.setText(t.getLink());
-//        holder.textViewUsername.setText(t.getUsername());
-//        holder.textViewPassword.setText(t.getPassword());
-
         holder.indexType.setText(t.getIndexType());
         holder.folderType.setText(t.getFolderType());
 
         int noOfMedia = getNoOfMedia(holder.itemView.getContext(), t);
-        String s = noOfMedia+" "+t.getFolderType();
-        holder.noOfMedia.setText(s);
+        holder.noOfMedia.setText(noOfMedia + " " + t.getFolderType());
+        holder.refreshIndex.setEnabled(true);
 
+        holder.refreshIndex.setOnClickListener(view -> {
+            Context context = holder.itemView.getContext();
+            holder.refreshIndex.setEnabled(false);
+            holder.noOfMedia.setText("Connecting…");
 
-
-//        if (t.getUsername().length() > 0 && t.getPassword().length() > 0) {
-//            holder.textViewUsername.setVisibility(View.VISIBLE);
-//            holder.textViewPassword.setVisibility(View.VISIBLE);
-//        }
-
-        holder.refreshIndex.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Toast.makeText(view.getContext() , "Refreshing...",Toast.LENGTH_LONG).show();
-                refreshIndex(holder.itemView.getContext() , t);
-
-            }
-        });
-        holder.delete.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if(!deleteIndex(holder.itemView.getContext(), t)){
-                    Toast.makeText(view.getContext() , "Deleted",Toast.LENGTH_LONG).show();
+            refreshIndex(context, t, progress -> {
+                if (progress.finished && !progress.error) {
+                    int finalCount = getNoOfMedia(context, t);
+                    mainHandler.post(() -> {
+                        if (holder.getBindingAdapterPosition() != RecyclerView.NO_POSITION) {
+                            holder.noOfMedia.setText(finalCount + " " + t.getFolderType());
+                            holder.refreshIndex.setEnabled(true);
+                        }
+                        Toast.makeText(context,
+                                "Scan complete: " + finalCount + " " + t.getFolderType(),
+                                Toast.LENGTH_SHORT).show();
+                    });
+                    return;
                 }
+
+                mainHandler.post(() -> {
+                    if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION) return;
+                    holder.noOfMedia.setText(progress.message);
+                    if (progress.error) {
+                        holder.refreshIndex.setEnabled(true);
+                        Toast.makeText(context, progress.message, Toast.LENGTH_LONG).show();
+                    }
+                });
+            });
+        });
+
+        holder.delete.setOnClickListener(view -> {
+            if (!deleteIndex(holder.itemView.getContext(), t)) {
+                Toast.makeText(view.getContext(), "Deleted", Toast.LENGTH_LONG).show();
             }
         });
 
-        if(t.getDisabled()==1){
-            holder.enableIndex.setChecked(false);
-        }
-        holder.enableIndex.setOnCheckedChangeListener((buttonView , isChecked) -> {
-            if(!isChecked){
-                System.out.println("disable index pressed");
+        holder.enableIndex.setOnCheckedChangeListener(null);
+        holder.enableIndex.setChecked(t.getDisabled() != 1);
+        holder.enableIndex.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!isChecked) {
                 disableIndex(holder.itemView.getContext(), t);
-            }
-            if(isChecked){
+            } else {
                 enableIndex(holder.itemView.getContext(), t);
             }
         });
-
-
-//        holder.actv.addTextChangedListener(new TextWatcher() {
-//
-//            @Override
-//            public void onTextChanged(CharSequence s, int start, int before, int count) {
-//                String changeTo =s.toString();
-//                 new Thread(new Runnable() {
-//                    @Override
-//                    public void run() {
-//                        if(changeTo.equals("GDIndex")){
-//                            deleteIndex(t);
-//                            postRequestGDIndex(t.getLink(),t.getUsername(),t.getPassword(), !t.folderType.equals("Movies"));
-//                        }if(changeTo.equals("GoIndex")){
-//                            deleteIndex(t);
-//                            postRequestGoIndex(t.getLink(),t.getUsername(),t.getPassword(), !t.folderType.equals("Movies"));
-//                        }if(changeTo.equals("Maple")){
-//                            deleteIndex(t);
-//                            postRequestMapleIndex(t.getLink(),t.getUsername(),t.getPassword(), !t.folderType.equals("Movies"));
-//                        }
-//                        if(changeTo.equals("SimpleProgram")){
-//                            deleteIndex(t);
-//                            postRequestSimpleProgramIndex(t.getLink(),t.getUsername(),t.getPassword(), !t.folderType.equals("Movies"));
-//                        }
-//                    }
-//                }).start();
-//
-//
-//            }
-//
-//            @Override
-//            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-//
-//            }
-//
-//            @Override
-//            public void afterTextChanged(Editable s) {
-//
-//            }
-//        });
     }
-
 
     @Override
     public int getItemCount() {
-        if (indexLinkList == null) {
-            return 0;
-        }
-        return indexLinkList.size();
+        return indexLinkList == null ? 0 : indexLinkList.size();
     }
-
 
     protected class IndexViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
 
-        TextView textViewLink, textViewUsername, textViewPassword, indexType, folderType, noOfMedia;
+        TextView textViewLink, indexType, folderType, noOfMedia;
         ImageButton refreshIndex;
         ImageButton delete;
         SwitchCompat enableIndex;
-
-
 
         public IndexViewHolder(View itemView) {
             super(itemView);
@@ -161,13 +124,8 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
             itemView.setOnClickListener(this);
         }
 
-
         @Override
         public void onClick(View v) {
-
         }
     }
-
 }
-
-
