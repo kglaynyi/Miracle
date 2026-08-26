@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/release-apk.yml'
+      - 'app/build.gradle'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -26,6 +27,15 @@ jobs:
           distribution: temurin
           java-version: '11'
 
+      - name: Prepare stable test signing directory
+        run: mkdir -p ~/.android
+
+      - name: Restore stable test signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: miracle-debug-signing-key-v1
+
       - name: Build installable APK
         run: ./gradlew assembleDebug --stacktrace
 
@@ -33,7 +43,12 @@ jobs:
         shell: bash
         run: |
           set -e
-          VERSION="v1.0.8"
+          VERSION_NAME=$(sed -n 's/.*versionName "\([^"]*\)".*/\1/p' app/build.gradle | head -1)
+          if [[ -z "$VERSION_NAME" ]]; then
+            echo "Could not determine versionName"
+            exit 1
+          fi
+          VERSION="v${VERSION_NAME}"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME}"
           fi
@@ -46,10 +61,11 @@ jobs:
         shell: bash
         run: |
           set -e
+          NOTES="Index reliability update: validates URL and credentials before saving; fixes GoIndex scanning, MapleIndex movie scanning, null MIME handling, video extension detection, paging reset, encoded paths, and scan-result reporting. Package: com.miracle.kglaynyi. Based on Thunder by anujd64 and distributed under GPL-3.0."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
           else
             gh release create "$VERSION" "Miracle-${VERSION}.apk" \
               --title "Miracle $VERSION" \
-              --notes "Startup stability fix: hardened GitHub update checks, switched update source to Miracle releases, and added a fallback when RenderScript blur is unsupported. Package: com.miracle.kglaynyi. Based on Thunder by anujd64 and distributed under GPL-3.0."
+              --notes "$NOTES"
           fi
