@@ -61,7 +61,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Index reliability update: validates URL and credentials before saving; fixes GoIndex scanning, MapleIndex movie scanning, null MIME handling, video extension detection, paging reset, encoded paths, and scan-result reporting. Package: com.miracle.kglaynyi. Based on Thunder by anujd64 and distributed under GPL-3.0."
+          NOTES="GDI-JS support: native username/password login through /login, session-cookie authenticated file scanning, automatic detection when GDIndex returns the GDI-JS 401 response, direct GDI-JS file links, recursive video scanning, and GDI-JS refresh support. Package: com.miracle.kglaynyi. Based on Thunder by anujd64 and distributed under GPL-3.0."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
           else
