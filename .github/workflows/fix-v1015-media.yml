@@ -28,7 +28,10 @@ jobs:
           java-version: '11'
 
       - name: Apply fixes
-        run: python3 .github/fix_v1015.py
+        shell: bash
+        run: |
+          sed -i 's/out, count = re.subn(pattern, repl, s, count=1, flags=flags)/out, count = re.subn(pattern, lambda _m: repl, s, count=1, flags=flags)/' .github/fix_v1015.py
+          python3 .github/fix_v1015.py
 
       - name: Build and validate
         run: ./gradlew assembleDebug --stacktrace
