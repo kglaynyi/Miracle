@@ -1,5 +1,6 @@
 package com.miracle.kglaynyi.utils;
 
+import static com.miracle.kglaynyi.Constants.TMDB_API_KEY;
 import static com.miracle.kglaynyi.MainActivity.context;
 import static com.miracle.kglaynyi.utils.SendGetRequestTMDB.sendGet2;
 import static com.miracle.kglaynyi.utils.SendGetRequestTMDB.sendGetTVShow;
@@ -21,6 +22,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -36,11 +38,58 @@ public final class GdiJsIndexClient {
     private static final int READ_TIMEOUT_MS = 30000;
     private static final int MAX_PAGES_PER_FOLDER = 1000;
     private static final int MAX_FOLDERS = 10000;
-
-    // GDI-JS routes drive #0 through /0:/ and redirects non-drive paths there.
     private static final String DEFAULT_DRIVE_PREFIX = "0:/";
 
     private GdiJsIndexClient() {}
+
+    public interface ProgressListener {
+        void onProgress(Progress progress);
+    }
+
+    public static final class Progress {
+        public final String message;
+        public final int percent;
+        public final int processed;
+        public final int total;
+        public final int remaining;
+        public final int folders;
+        public final int files;
+        public final int videos;
+        public final boolean finished;
+        public final boolean error;
+
+        private Progress(String message, int percent, int processed, int total,
+                         int remaining, int folders, int files, int videos,
+                         boolean finished, boolean error) {
+            this.message = message;
+            this.percent = percent;
+            this.processed = processed;
+            this.total = total;
+            this.remaining = remaining;
+            this.folders = folders;
+            this.files = files;
+            this.videos = videos;
+            this.finished = finished;
+            this.error = error;
+        }
+
+        public static Progress status(String message, int percent, int processed,
+                                      int total, int remaining, int folders,
+                                      int files, int videos) {
+            return new Progress(message, percent, processed, total, remaining,
+                    folders, files, videos, false, false);
+        }
+
+        public static Progress done(String message, int total, int folders, int files) {
+            return new Progress(message, 100, total, total, 0,
+                    folders, files, total, true, false);
+        }
+
+        public static Progress failed(String message) {
+            return new Progress(message, -1, 0, 0, 0,
+                    0, 0, 0, true, true);
+        }
+    }
 
     public static final class Result {
         public final boolean success;
@@ -72,14 +121,23 @@ public final class GdiJsIndexClient {
         }
     }
 
+    private static final class VideoEntry {
+        final String folderUrl;
+        final File file;
+
+        VideoEntry(String folderUrl, File file) {
+            this.folderUrl = folderUrl;
+            this.file = file;
+        }
+    }
+
     public static Result validate(String rawBaseUrl, String username, String password) {
         try {
             String baseUrl = normalizeBaseUrl(rawBaseUrl);
             Session session = login(baseUrl, username, password);
             if (!session.success) return Result.error(session.message);
 
-            String apiRoot = getDefaultApiRoot(baseUrl);
-            ResFormat root = fetchPage(apiRoot, session.cookie, "", 0);
+            ResFormat root = fetchPage(getDefaultApiRoot(baseUrl), session.cookie, "", 0);
             if (root == null || root.getData() == null) {
                 return Result.error("Login succeeded, but /0:/ returned an invalid file list");
             }
@@ -97,15 +155,97 @@ public final class GdiJsIndexClient {
 
     public static int scan(String rawBaseUrl, String username, String password,
                            boolean tvShows, int indexId) throws Exception {
+        return scan(rawBaseUrl, username, password, tvShows, indexId, null);
+    }
+
+    public static int scan(String rawBaseUrl, String username, String password,
+                           boolean tvShows, int indexId, ProgressListener listener) throws Exception {
+        emit(listener, Progress.status("Connecting to index…", -1,
+                0, 0, 0, 0, 0, 0));
+
         String baseUrl = normalizeBaseUrl(rawBaseUrl);
         Session session = login(baseUrl, username, password);
         if (!session.success) throw new IOException(session.message);
 
+        emit(listener, Progress.status("Login verified. Discovering videos…", -1,
+                0, 0, 0, 0, 0, 0));
+
         String apiRoot = getDefaultApiRoot(baseUrl);
         Set<String> visitedFolders = new HashSet<>();
-        int[] counters = new int[]{0, 0}; // videos, folders
-        scanFolder(baseUrl, apiRoot, session.cookie, tvShows, indexId, visitedFolders, counters);
-        return counters[0];
+        List<VideoEntry> videoEntries = new ArrayList<>();
+        int[] stats = new int[]{0, 0, 0}; // folders, files, videos
+
+        discoverFolder(apiRoot, session.cookie, visitedFolders, videoEntries, stats, listener);
+
+        int total = videoEntries.size();
+        if (total == 0) {
+            emit(listener, Progress.done("Scan complete • 0 videos found", 0, stats[0], stats[1]));
+            return 0;
+        }
+
+        emit(listener, Progress.status("Found " + total + " videos • processing 0/" + total,
+                0, 0, total, total, stats[0], stats[1], total));
+
+        for (int i = 0; i < total; i++) {
+            VideoEntry entry = videoEntries.get(i);
+            processVideo(baseUrl, entry.folderUrl, entry.file, tvShows, indexId);
+
+            int processed = i + 1;
+            int remaining = total - processed;
+            int percent = (int) ((processed * 100L) / total);
+            String message = processed + "/" + total + " • " + percent
+                    + "% • " + remaining + " left";
+            emit(listener, Progress.status(message, percent, processed, total,
+                    remaining, stats[0], stats[1], total));
+        }
+
+        emit(listener, Progress.done("Done • " + total + " videos scanned",
+                total, stats[0], stats[1]));
+        return total;
+    }
+
+    private static void discoverFolder(String folderUrl, String cookie,
+                                       Set<String> visitedFolders, List<VideoEntry> videoEntries,
+                                       int[] stats, ProgressListener listener) throws Exception {
+        if (stats[0] >= MAX_FOLDERS) {
+            throw new IOException("Index contains too many folders to scan safely");
+        }
+        if (!visitedFolders.add(folderUrl)) return;
+        stats[0]++;
+
+        String pageToken = "";
+        int pageIndex = 0;
+        for (int page = 0; page < MAX_PAGES_PER_FOLDER; page++) {
+            ResFormat result = fetchPage(folderUrl, cookie, pageToken, pageIndex);
+            if (result == null || result.getData() == null) return;
+
+            List<File> files = result.getData().getFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file == null) continue;
+                    if (isFolder(file)) {
+                        String child = appendPath(folderUrl, file.getName(), true);
+                        discoverFolder(child, cookie, visitedFolders, videoEntries, stats, listener);
+                    } else {
+                        stats[1]++;
+                        if (isVideoFile(file)) {
+                            stats[2]++;
+                            videoEntries.add(new VideoEntry(folderUrl, file));
+                        }
+                    }
+                }
+            }
+
+            String discoveryMessage = "Discovering… " + stats[0] + " folders • "
+                    + stats[1] + " files • " + stats[2] + " videos";
+            emit(listener, Progress.status(discoveryMessage, -1, 0, 0, 0,
+                    stats[0], stats[1], stats[2]));
+
+            String next = result.getNextPageToken();
+            if (next == null || next.trim().isEmpty()) break;
+            pageToken = next;
+            pageIndex++;
+        }
     }
 
     private static Session login(String baseUrl, String username, String password) throws Exception {
@@ -147,8 +287,7 @@ public final class GdiJsIndexClient {
                 return new Session(false, null, message);
             }
 
-            String setCookie = conn.getHeaderField("Set-Cookie");
-            String cookie = extractSessionCookie(setCookie);
+            String cookie = extractSessionCookie(conn.getHeaderField("Set-Cookie"));
             if (cookie == null) {
                 return new Session(false, null,
                         "Login succeeded but no session cookie was returned");
@@ -156,43 +295,6 @@ public final class GdiJsIndexClient {
             return new Session(true, cookie, "OK");
         } finally {
             conn.disconnect();
-        }
-    }
-
-    private static void scanFolder(String rootUrl, String folderUrl, String cookie,
-                                   boolean tvShows, int indexId, Set<String> visitedFolders,
-                                   int[] counters) throws Exception {
-        if (counters[1] >= MAX_FOLDERS) {
-            throw new IOException("Index contains too many folders to scan safely");
-        }
-        if (!visitedFolders.add(folderUrl)) return;
-        counters[1]++;
-
-        String pageToken = "";
-        int pageIndex = 0;
-        for (int page = 0; page < MAX_PAGES_PER_FOLDER; page++) {
-            ResFormat result = fetchPage(folderUrl, cookie, pageToken, pageIndex);
-            if (result == null || result.getData() == null) return;
-
-            List<File> files = result.getData().getFiles();
-            if (files != null) {
-                for (File file : files) {
-                    if (file == null) continue;
-                    if (isFolder(file)) {
-                        String child = appendPath(folderUrl, file.getName(), true);
-                        scanFolder(rootUrl, child, cookie, tvShows, indexId,
-                                visitedFolders, counters);
-                    } else if (isVideoFile(file)) {
-                        counters[0]++;
-                        processVideo(rootUrl, folderUrl, file, tvShows, indexId);
-                    }
-                }
-            }
-
-            String next = result.getNextPageToken();
-            if (next == null || next.trim().isEmpty()) break;
-            pageToken = next;
-            pageIndex++;
         }
     }
 
@@ -215,8 +317,7 @@ public final class GdiJsIndexClient {
             request.addProperty("page_token", pageToken == null ? "" : pageToken);
             request.addProperty("page_index", pageIndex);
             request.addProperty("password", "");
-            byte[] body = request.toString().getBytes(StandardCharsets.UTF_8);
-            conn.getOutputStream().write(body);
+            conn.getOutputStream().write(request.toString().getBytes(StandardCharsets.UTF_8));
 
             int code = conn.getResponseCode();
             String response = readBody(conn, code);
@@ -226,7 +327,8 @@ public final class GdiJsIndexClient {
             }
             if (code >= 300 && code < 400) {
                 String location = conn.getHeaderField("Location");
-                throw new IOException("GDI-JS API redirected to " + (location == null ? "another page" : location));
+                throw new IOException("GDI-JS API redirected to "
+                        + (location == null ? "another page" : location));
             }
             if (code < 200 || code >= 300) {
                 throw new IOException("Index returned HTTP " + code);
@@ -247,7 +349,7 @@ public final class GdiJsIndexClient {
                     throw new IOException(envelope.get("message").getAsString());
                 }
             } catch (IllegalStateException ignored) {
-                // Parsed below as the normal ResFormat response.
+                // Normal file-list response is parsed below.
             }
 
             ResFormat result;
@@ -290,26 +392,65 @@ public final class GdiJsIndexClient {
             movie.setUrlString(streamUrl);
             movie.setGd_id(id == null ? "" : id);
             movie.setIndex_id(indexId);
-            sendGet2(movie);
+
+            if (isTmdbConfigured()) {
+                sendGet2(movie);
+            } else {
+                String title = fallbackMovieTitle(file.getName());
+                movie.setTitle(title);
+                movie.setOriginal_title(title);
+                DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
+            }
         }
     }
 
     private static boolean isAlreadyPresent(String id, Date modifiedTime) {
         if (id == null || id.trim().isEmpty()) return false;
+
         Movie movie = DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByGdId(id);
         Episode episode = DatabaseClient.getInstance(context).getAppDatabase().episodeDao().findByGdId(id);
 
-        if (movie != null && modifiedTime != null && movie.getModifiedTime() != null
-                && modifiedTime.after(movie.getModifiedTime())) {
-            DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
-            return false;
+        if (movie != null) {
+            boolean needsFallbackRepair = !isTmdbConfigured()
+                    && (movie.getTitle() == null || movie.getTitle().trim().isEmpty());
+            boolean needsTmdbRefresh = isTmdbConfigured() && movie.getId() == 0;
+            boolean modified = modifiedTime != null && movie.getModifiedTime() != null
+                    && modifiedTime.after(movie.getModifiedTime());
+            if (needsFallbackRepair || needsTmdbRefresh || modified) {
+                DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
+                movie = null;
+            }
         }
+
         if (episode != null && modifiedTime != null && episode.getModifiedTime() != null
                 && modifiedTime.after(episode.getModifiedTime())) {
             DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByGdId(id);
-            return false;
+            episode = null;
         }
         return movie != null || episode != null;
+    }
+
+    private static boolean isTmdbConfigured() {
+        return TMDB_API_KEY != null && !TMDB_API_KEY.trim().isEmpty();
+    }
+
+    private static String fallbackMovieTitle(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) return "Untitled Video";
+
+        try {
+            String[] extracted = MovieTitleExtractor2.getTitle2(fileName.replace("Copy of ", ""));
+            if (extracted != null && extracted.length > 0
+                    && extracted[0] != null && !extracted[0].trim().isEmpty()) {
+                return extracted[0].trim();
+            }
+        } catch (Exception ignored) {}
+
+        String name = fileName.trim();
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) name = name.substring(0, dot);
+        name = name.replace('.', ' ').replace('_', ' ')
+                .replaceAll("\\s+", " ").trim();
+        return name.isEmpty() ? "Untitled Video" : name;
     }
 
     private static boolean isVideoFile(File file) {
@@ -373,6 +514,10 @@ public final class GdiJsIndexClient {
             if (trimmed.startsWith("session=")) return trimmed;
         }
         return null;
+    }
+
+    private static void emit(ProgressListener listener, Progress progress) {
+        if (listener != null) listener.onProgress(progress);
     }
 
     private static String readBody(HttpURLConnection conn, int code) throws IOException {
