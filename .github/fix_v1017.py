@@ -54,8 +54,4 @@ replace1('app/build.gradle',
          '        versionCode 10\n        versionName "1.0.16"',
          '        versionCode 11\n        versionName "1.0.17"')
 
-replace1('.github/workflows/release-apk.yml',
-         '          NOTES="Keeps scan progress across tabs and rebuilds stale movie, TV, anime, poster, and TMDB metadata on refresh."',
-         '          NOTES="Keeps the library visible during discovery and refreshes Movies, TV Shows, and Anime automatically while scan metadata is rebuilt."')
-
 print('v1.0.17 patch applied')
