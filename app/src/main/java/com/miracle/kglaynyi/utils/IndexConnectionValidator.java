@@ -11,7 +11,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -24,18 +23,20 @@ public final class IndexConnectionValidator {
     public static final class ValidationResult {
         public final boolean success;
         public final String message;
+        public final String resolvedIndexType;
 
-        private ValidationResult(boolean success, String message) {
+        private ValidationResult(boolean success, String message, String resolvedIndexType) {
             this.success = success;
             this.message = message;
+            this.resolvedIndexType = resolvedIndexType;
         }
 
-        public static ValidationResult ok() {
-            return new ValidationResult(true, "Index connection verified");
+        public static ValidationResult ok(String resolvedIndexType) {
+            return new ValidationResult(true, "Index connection verified", resolvedIndexType);
         }
 
         public static ValidationResult error(String message) {
-            return new ValidationResult(false, message);
+            return new ValidationResult(false, message, null);
         }
     }
 
@@ -55,10 +56,17 @@ public final class IndexConnectionValidator {
             urlString += "/";
         }
 
+        String type = indexType.trim();
+
+        if ("GDI-JS".equals(type)) {
+            GdiJsIndexClient.Result result = GdiJsIndexClient.validate(urlString, user, pass);
+            return result.success ? ValidationResult.ok("GDI-JS")
+                    : ValidationResult.error(result.message);
+        }
+
         HttpURLConnection conn = null;
         try {
             String authHeader = basicAuth(user == null ? "" : user, pass == null ? "" : pass);
-            String type = indexType.trim();
             URL url;
 
             if ("MapleIndex".equals(type) || "Maple".equals(type)) {
@@ -116,6 +124,17 @@ public final class IndexConnectionValidator {
             int code = conn.getResponseCode();
             String body = readBody(conn, code);
 
+            // GDI-JS 2.x protects POST API calls with a session cookie and returns 401
+            // until /login has been called. Automatically detect that when the user
+            // selected the older GDIndex option.
+            if ("GDIndex".equals(type)
+                    && (code == HttpURLConnection.HTTP_UNAUTHORIZED
+                    || code == HttpURLConnection.HTTP_FORBIDDEN)) {
+                GdiJsIndexClient.Result gdiJs = GdiJsIndexClient.validate(urlString, user, pass);
+                if (gdiJs.success) return ValidationResult.ok("GDI-JS");
+                return ValidationResult.error(gdiJs.message);
+            }
+
             if (code == HttpURLConnection.HTTP_UNAUTHORIZED || code == HttpURLConnection.HTTP_FORBIDDEN) {
                 return ValidationResult.error("Incorrect username/password or access denied (HTTP " + code + ")");
             }
@@ -134,13 +153,12 @@ public final class IndexConnectionValidator {
                 return ValidationResult.error("Incorrect username/password or index access denied");
             }
 
-            // A normal index response is JSON or the encrypted/HTML wrapper used by GDIndex.
             if (!"GDIndex".equals(type) && lower.startsWith("<html") &&
                     !lower.contains("files") && !lower.contains("drive")) {
                 return ValidationResult.error("URL opened a web page instead of an index API response");
             }
 
-            return ValidationResult.ok();
+            return ValidationResult.ok(type);
         } catch (java.net.MalformedURLException e) {
             return ValidationResult.error("Invalid index URL");
         } catch (java.net.SocketTimeoutException e) {
