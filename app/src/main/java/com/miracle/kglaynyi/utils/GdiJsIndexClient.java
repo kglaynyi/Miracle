@@ -230,7 +230,7 @@ public final class GdiJsIndexClient {
                         stats[1]++;
                         if (isVideoFile(file)) {
                             stats[2]++;
-                            if (!tvShows) saveDiscoveredPlaceholder(folderUrl, file, indexId);
+                            if (!tvShows && !looksLikeEpisode(folderUrl, file.getName())) saveDiscoveredPlaceholder(folderUrl, file, indexId);
                             videoEntries.add(new VideoEntry(folderUrl, file));
                         }
                     }
@@ -392,10 +392,16 @@ public final class GdiJsIndexClient {
     private static void processVideo(String rootUrl, String folderUrl, File file,
                                      boolean tvShows, int indexId) {
         String id = file.getId();
+        boolean treatAsTv = tvShows || looksLikeEpisode(folderUrl, file.getName());
+
+        // A previous scan may have incorrectly stored an episode as a Movie.
+        if (treatAsTv && id != null && !id.trim().isEmpty()) {
+            DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
+        }
         if (isAlreadyPresent(id, file.getModifiedTime())) return;
 
         String streamUrl = resolveFileUrl(rootUrl, folderUrl, file);
-        if (tvShows) {
+        if (treatAsTv) {
             Episode episode = new Episode();
             episode.setFileName(file.getName());
             episode.setMimeType(file.getMimeType());
@@ -424,6 +430,24 @@ public final class GdiJsIndexClient {
                 DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
             }
         }
+    }
+
+    private static boolean looksLikeEpisode(String folderUrl, String fileName) {
+        if (fileName == null) return false;
+        String clean = fileName.replace("Copy of ", "").trim();
+        if (ShowUtils.parseShowName(clean) != null) return true;
+        if (AnimeNameExtractor.getAnimeName(clean) != null) return true;
+
+        String lowerPath = ((folderUrl == null ? "" : folderUrl) + "/" + clean).toLowerCase();
+        boolean seriesFolder = lowerPath.contains("/tv shows/")
+                || lowerPath.contains("/tvshows/")
+                || lowerPath.contains("/series/")
+                || lowerPath.contains("/shows/")
+                || lowerPath.contains("/anime/");
+        String base = clean.replaceFirst("\\.[^.]+$", "").trim();
+        boolean numberOnlyEpisode = base.matches("(?i)^(?:e|ep|episode)?[ ._-]*\\d{1,3}(?:[ ._-].*)?$");
+        boolean seasonFolder = lowerPath.matches(".*[/_-](?:season[ ._-]*|s)\\d{1,2}[/_-].*");
+        return seriesFolder && (numberOnlyEpisode || seasonFolder);
     }
 
     private static boolean isAlreadyPresent(String id, Date modifiedTime) {

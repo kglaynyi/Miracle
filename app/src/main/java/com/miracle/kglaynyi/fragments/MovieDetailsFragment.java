@@ -222,7 +222,11 @@ public class MovieDetailsFragment extends BaseFragment{
                                    titleText.setText(movieDetails.getTitle());
                                }else {
                                    titleText.setVisibility(View.VISIBLE);
-                                   titleText.setText(movieFileName);
+                                   String displayTitle = movieDetails.getTitle();
+                                   if (displayTitle == null || displayTitle.trim().isEmpty()) {
+                                       displayTitle = movieFileName != null ? movieFileName : movieDetails.getFileName();
+                                   }
+                                   titleText.setText(displayTitle);
                                }
 
                                if(movieDetails.getRuntime()>0){

@@ -1,4 +1,3 @@
-
 package com.miracle.kglaynyi.adapter;
 
 import android.content.Context;
@@ -7,7 +6,6 @@ import android.graphics.drawable.ColorDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -28,238 +26,97 @@ import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
 import java.util.List;
 
 public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaAdapterHolder> {
+    private final Context context;
+    private final List<MyMedia> mediaList;
+    private final OnItemClickListener listener;
 
-    Context context;
-    List<MyMedia> mediaList;
-    private MediaAdapter.OnItemClickListener listener;
-
-    public MediaAdapter(Context context, List<MyMedia> mediaList, MediaAdapter.OnItemClickListener listener) {
+    public MediaAdapter(Context context, List<MyMedia> mediaList, OnItemClickListener listener) {
         this.context = context;
         this.mediaList = mediaList;
-        this.listener= listener;
+        this.listener = listener;
     }
 
     @NonNull
     @Override
     public MediaAdapterHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.media_item, parent, false);
-        return new MediaAdapterHolder(view);
+        return new MediaAdapterHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.media_item, parent, false));
     }
 
     @Override
     public void onBindViewHolder(@NonNull MediaAdapterHolder holder, int position) {
-        
-        if(mediaList.get(position) instanceof Movie) {
-            Movie movie = ((Movie)mediaList.get(position));
-            if(movie.getTitle()==null){
-                holder.name.setText(movie.getFileName());
-            } else holder.name.setText(movie.getTitle());
+        holder.name.setText("");
+        holder.movieYear.setText("");
+        holder.movieYear.setVisibility(View.GONE);
+        Glide.with(context).clear(holder.poster);
+        holder.poster.setImageResource(R.drawable.dummyposter);
 
-            if(movie.getPoster_path()!=null){
-                Glide.with(context)
-                        .load(Constants.TMDB_IMAGE_BASE_URL+movie.getPoster_path())
-                        .placeholder(new ColorDrawable(Color.BLACK))
-                        .apply(RequestOptions.bitmapTransform(new RoundedCorners(14)))
-                        .into(holder.poster);
-            }
-
+        MyMedia media = mediaList.get(position);
+        if (media instanceof Movie) {
+            Movie movie = (Movie) media;
+            String name = movie.getTitle();
+            if (name == null || name.trim().isEmpty()) name = movie.getFileName();
+            holder.name.setText(name == null ? "Unknown" : name);
+            loadPoster(holder.poster, movie.getPoster_path());
             String year = movie.getRelease_date();
-            if(year!=null&&year.length()>4) {
+            if (year != null && !year.trim().isEmpty()) {
                 holder.movieYear.setVisibility(View.VISIBLE);
-                holder.movieYear.setText(year.substring(0,year.indexOf('-')));
-            }else {
+                int dash = year.indexOf('-');
+                holder.movieYear.setText(dash > 0 ? year.substring(0, dash) : year);
+            }
+        } else if (media instanceof TVShow) {
+            TVShow show = (TVShow) media;
+            holder.name.setText(show.getName() == null ? "Unknown Show" : show.getName());
+            loadPoster(holder.poster, show.getPoster_path());
+            String year = show.getFirst_air_date();
+            if (year != null && !year.isEmpty()) {
                 holder.movieYear.setVisibility(View.VISIBLE);
-                holder.movieYear.setText(year);
+                int dash = year.indexOf('-');
+                holder.movieYear.setText(dash > 0 ? year.substring(0, dash) : year);
             }
-
+        } else if (media instanceof TVShowSeasonDetails) {
+            TVShowSeasonDetails season = (TVShowSeasonDetails) media;
+            holder.name.setText(season.getName() == null ? "Season" : season.getName());
+            loadPoster(holder.poster, season.getPoster_path());
         }
-        
-        
-        if(mediaList.get(position) instanceof TVShow){
-            TVShow tvShow = ((TVShow)mediaList.get(position));
-            if(tvShow.getName()!=null){
-                holder.name.setText(tvShow.getName());
-                Glide.with(context)
-                        .load(Constants.TMDB_IMAGE_BASE_URL+tvShow.getPoster_path())
-                        .placeholder(new ColorDrawable(Color.BLACK))
-                        .apply(RequestOptions.bitmapTransform(new RoundedCorners(14)))
-                        .into(holder.poster);
-            }
-        }
-        
-        
-        if(mediaList.get(position) instanceof TVShowSeasonDetails){
-            TVShowSeasonDetails tvShowSeason = ((TVShowSeasonDetails)mediaList.get(position));
-            if(tvShowSeason.getName()!=null){
-                holder.name.setText(tvShowSeason.getName());
-                String poster_path = tvShowSeason.getPoster_path();
-                if(poster_path!=null){
-                    Glide.with(context)
-                            .load(Constants.TMDB_IMAGE_BASE_URL+poster_path)
-                            .placeholder(new ColorDrawable(Color.BLACK))
-                            .apply(RequestOptions.bitmapTransform(new RoundedCorners(14)))
-                            .into(holder.poster);
-                }
-
-            }
-        }
-
-
-        setAnimation(holder.itemView,position);
-
+        holder.itemView.startAnimation(AnimationUtils.loadAnimation(context, R.anim.pop_in));
     }
 
-
+    private void loadPoster(ImageView view, String path) {
+        if (path == null || path.trim().isEmpty()) return;
+        Glide.with(context)
+                .load(Constants.TMDB_IMAGE_BASE_URL + path)
+                .placeholder(new ColorDrawable(Color.BLACK))
+                .error(R.drawable.dummyposter)
+                .apply(RequestOptions.bitmapTransform(new RoundedCorners(14)))
+                .into(view);
+    }
 
     @Override
     public int getItemCount() {
-        return mediaList.size();
+        return mediaList == null ? 0 : mediaList.size();
     }
 
+    public class MediaAdapterHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+        final TextView name;
+        final ImageView poster;
+        final TextView movieYear;
 
-
-    public class MediaAdapterHolder extends RecyclerView.ViewHolder implements View.OnClickListener{
-
-        TextView name;
-        ImageView poster;
-        TextView movieYear;
-
-        public MediaAdapterHolder(@NonNull View itemView) {
+        MediaAdapterHolder(@NonNull View itemView) {
             super(itemView);
             name = itemView.findViewById(R.id.nameInMediaItem);
-            poster= itemView.findViewById(R.id.posterInMediaItem);
+            poster = itemView.findViewById(R.id.posterInMediaItem);
             movieYear = itemView.findViewById(R.id.yearInMediaItem);
-
             itemView.setOnClickListener(this);
         }
 
         @Override
         public void onClick(View v) {
-            listener.onClick(v,getAbsoluteAdapterPosition());
+            int position = getBindingAdapterPosition();
+            if (listener != null && position != RecyclerView.NO_POSITION) listener.onClick(v, position);
         }
     }
 
-    
     public interface OnItemClickListener {
-        public void onClick(View view, int position);
-    }
-
-    private void setAnimation(View itemView , int position){
-        Animation popIn = AnimationUtils.loadAnimation(context,R.anim.pop_in);
-        itemView.startAnimation(popIn);
+        void onClick(View view, int position);
     }
 }
-//package com.miracle.kglaynyi.adapter;
-//
-//import static com.miracle.kglaynyi.Constants.TMDB_IMAGE_BASE_URL;
-//
-//import android.content.Context;
-//import android.graphics.Color;
-//import android.graphics.drawable.ColorDrawable;
-//import android.view.LayoutInflater;
-//import android.view.View;
-//import android.view.ViewGroup;
-//import android.widget.ImageView;
-//import android.widget.TextView;
-//
-//import androidx.annotation.NonNull;
-//import androidx.recyclerview.widget.RecyclerView;
-//
-//import com.bumptech.glide.Glide;
-//import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
-//import com.bumptech.glide.request.RequestOptions;
-//import com.miracle.kglaynyi.Constants;
-//import com.miracle.kglaynyi.R;
-//import com.miracle.kglaynyi.model.Movie;
-//import com.miracle.kglaynyi.model.MyMedia;
-//import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
-//import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
-//
-//import java.util.List;
-//
-//
-//public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaAdapterHolder> {
-//
-//    Context context;
-//    List<MyMedia> mediaList;
-//    private OnItemClickListener listener;
-//
-//    public MediaAdapter(Context context, List<MyMedia> mediaList) {
-//        this.context = context;
-//        this.mediaList = mediaList;
-//        this.listener= listener;
-//    }
-//
-//    @NonNull
-//    @Override
-//    public MediaAdapterHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-//        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.media_item, parent, false);
-//        return new MediaAdapterHolder(view);
-//    }
-//
-//    @Override
-//    public void onBindViewHolder(@NonNull MediaAdapterHolder holder, int position) {
-//        if(mediaList!=null){
-//            try {
-//                if(((Movie)mediaList.get(position)).getTitle()!=null){
-//                    holder.name.setText(((Movie)mediaList.get(position)).getTitle());
-//                    Glide.with(context)
-//                            .load(TMDB_IMAGE_BASE_URL+((Movie)mediaList.get(position)).getPoster_path())
-//                            .placeholder(new ColorDrawable(Color.BLACK))
-//                            .apply(RequestOptions.bitmapTransform(new RoundedCorners(14)))
-//                            .into(holder.poster);
-//                }
-//                if(((TVShow)mediaList.get(position)).getNumber_of_seasons()>0){
-//                    holder.name.setText(((TVShow)mediaList.get(position)).getName());
-//                    Glide.with(context)
-//                            .load(Constants.TMDB_IMAGE_BASE_URL+((TVShow)mediaList.get(position)).getPoster_path())
-//                            .placeholder(new ColorDrawable(Color.BLACK))
-//                            .apply(RequestOptions.bitmapTransform(new RoundedCorners(14)))
-//                            .into(holder.poster);
-//                }
-//                else {
-//                    holder.name.setText(((TVShowSeasonDetails)mediaList.get(position)).getName());
-//                    Glide.with(context)
-//                            .load(Constants.TMDB_IMAGE_BASE_URL+((TVShowSeasonDetails)mediaList.get(position)).getPoster_path())
-//                            .placeholder(new ColorDrawable(Color.BLACK))
-//                            .apply(RequestOptions.bitmapTransform(new RoundedCorners(14)))
-//                            .into(holder.poster);
-//                }
-//            }catch (ClassCastException e){
-//                System.out.println("Exception class cast");
-//            }
-//
-//        }
-//
-//
-//
-//    }
-//
-//    @Override
-//    public int getItemCount() {
-//        return (mediaList==null)?0:mediaList.size();
-//    }
-//
-//    public class MediaAdapterHolder extends RecyclerView.ViewHolder implements View.OnClickListener{
-//
-//        TextView name;
-//        ImageView poster;
-//        public MediaAdapterHolder(@NonNull View itemView) {
-//            super(itemView);
-//            name = itemView.findViewById(R.id.mediaName);
-//            poster= itemView.findViewById(R.id.mediaPoster);
-//            itemView.setOnClickListener(this);
-//        }
-//
-//
-//        @Override
-//        public void onClick(View v) {
-//            listener.onClick(v,getAbsoluteAdapterPosition());
-//        }
-//
-//    }
-//    public interface OnItemClickListener {
-//        public void onClick(View view, int position);
-//    }
-//}
-

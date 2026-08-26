@@ -60,6 +60,7 @@ public class SendGetRequestTMDB {
         if (movieIdFromPlexExtractor != null) {
             System.out.println("movieId from plex extractor");
             getMovieById(Long.parseLong(movieIdFromPlexExtractor) , movie);
+            return;
         }
 
 
@@ -109,8 +110,10 @@ public class SendGetRequestTMDB {
                     }
             }
             int finalIndex = 0;
-            if (!titleExtracted.equals("") && !yearExtracted.equals("0")) {
-                finalIndex = findIndexOfClosestMatch(titleExtracted + " " + yearExtracted , titlesAndYearsFromTMDB);
+            if (!titleExtracted.equals("")) {
+                String matchText = titleExtracted;
+                if (!yearExtracted.equals("0")) matchText += " " + yearExtracted;
+                finalIndex = findIndexOfClosestMatch(matchText, titlesAndYearsFromTMDB);
             }
             int movieId = moviesResponseFromTMDB.results.get(finalIndex).getId();
             getMovieById(movieId , movie);
@@ -119,7 +122,7 @@ public class SendGetRequestTMDB {
         else if (movie.getTitle() == null) {
             System.out.println("file with no tmdb info" + movie);
             ensureFallbackMovieTitle(movie);
-            DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
+            upsertMovieByGdId(movie);
         }
     }
 
@@ -135,6 +138,74 @@ public class SendGetRequestTMDB {
     movie.setTitle(name);
     movie.setOriginal_title(name);
 }
+
+    private static void upsertMovieByGdId(Movie movie) {
+        if (movie == null) return;
+        String gdId = movie.getGd_id();
+        if (gdId != null && !gdId.trim().isEmpty()) {
+            DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(gdId);
+        }
+        DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
+    }
+
+    private static String[] parseEpisodeFallback(Episode episode) {
+        if (episode == null) return null;
+        String fileName = episode.getFileName() == null ? "" : episode.getFileName().replace("Copy of ", "").trim();
+        String[] anime = AnimeNameExtractor.getAnimeName(fileName);
+        if (anime != null) return anime;
+
+        String episodeNumber = null;
+        Matcher epMatcher = Pattern.compile(
+                "(?i)(?:^|[ ._\\-])(?:e|ep|episode)?[ ._\\-]*(\\d{1,3})(?=[ ._\\-\\[]|$)")
+                .matcher(fileName.replaceFirst("\\.[^.]+$", ""));
+        while (epMatcher.find()) episodeNumber = epMatcher.group(1);
+        if (episodeNumber == null) return null;
+
+        String showName = null;
+        String seasonNumber = "1";
+        try {
+            String decoded = java.net.URLDecoder.decode(episode.getUrlString() == null ? "" : episode.getUrlString(), "UTF-8");
+            String[] parts = decoded.split("/");
+            int seasonIndex = -1;
+            for (int i = 0; i < parts.length; i++) {
+                Matcher seasonMatcher = Pattern.compile("(?i)^(?:season[ ._-]*|s)(\\d{1,2})$").matcher(parts[i].trim());
+                if (seasonMatcher.find()) {
+                    seasonNumber = seasonMatcher.group(1);
+                    seasonIndex = i;
+                    break;
+                }
+            }
+            if (seasonIndex > 0) showName = cleanPathTitle(parts[seasonIndex - 1]);
+
+            if (showName == null || showName.isEmpty()) {
+                for (int i = 0; i + 1 < parts.length; i++) {
+                    String part = parts[i].trim().toLowerCase();
+                    if (part.equals("anime") || part.equals("tv shows") || part.equals("tvshows")
+                            || part.equals("shows") || part.equals("series")) {
+                        showName = cleanPathTitle(parts[i + 1]);
+                        break;
+                    }
+                }
+            }
+            if ((showName == null || showName.isEmpty()) && parts.length > 1) {
+                String parent = parts[parts.length - 2];
+                if (parent.matches("(?i)^(?:season[ ._-]*|s)\\d{1,2}$") && parts.length > 2) {
+                    parent = parts[parts.length - 3];
+                }
+                showName = cleanPathTitle(parent);
+            }
+        } catch (Exception ignored) { }
+
+        if (showName == null || showName.isEmpty()) return null;
+        return new String[]{showName, seasonNumber, episodeNumber};
+    }
+
+    private static String cleanPathTitle(String value) {
+        if (value == null) return "";
+        String result = value.replace('+', ' ').replace('.', ' ').replace('_', ' ').trim();
+        while (result.contains("  ")) result = result.replace("  ", " ");
+        return result;
+    }
 
     private static String searchMovieOnTmdbByName(String titleExtracted , String yearExtracted) {
         StringBuilder response = new StringBuilder();
@@ -169,7 +240,7 @@ public class SendGetRequestTMDB {
         //Get results from tmdb by Name
         Movie movie = (Movie) myMedia;
 
-        DatabaseClient.getInstance(context).getAppDatabase().movieDao().delete(movie);
+        // Replacement is keyed by gd_id below; deleting this newly-created entity is ineffective.
 
         StringBuilder responseById = new StringBuilder();
         try {
@@ -233,9 +304,7 @@ public class SendGetRequestTMDB {
 
         System.out.println("movie after adding everything" + movie);
 
-        if (DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByFileName(movie.getGd_id()) == null) {
-            DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
-        }
+        upsertMovieByGdId(movie);
 
     }
 
@@ -250,6 +319,13 @@ public class SendGetRequestTMDB {
             finalShowName = result.get(SHOW);
             finalSeasonNumber = result.get(SEASON);
             finalEpisodeNumber = result.get(EPNUM);
+        } else {
+            String[] fallback = parseEpisodeFallback(episode);
+            if (fallback != null) {
+                finalShowName = fallback[0];
+                finalSeasonNumber = fallback[1];
+                finalEpisodeNumber = fallback[2];
+            }
         }
         String finalurl = "";
         long tvShowId = 0;
@@ -425,6 +501,13 @@ public class SendGetRequestTMDB {
                 finalShowName = result.get(SHOW);
                 finalSeasonNumber = result.get(SEASON);
                 finalEpisodeNumber = result.get(EPNUM);
+            } else {
+                String[] fallback = parseEpisodeFallback(e);
+                if (fallback != null) {
+                    finalShowName = fallback[0];
+                    finalSeasonNumber = fallback[1];
+                    finalEpisodeNumber = fallback[2];
+                }
             }
             getTVSeasonById2(tvShowId , finalSeasonNumber , finalEpisodeNumber , e);
         }

@@ -11,7 +11,7 @@ import java.util.List;
 
 @Dao
 public interface MovieDao {
-    @Query("SELECT * FROM Movie WHERE title is not null and disabled=0 GROUP BY title ")
+    @Query("SELECT * FROM Movie m WHERE m.title IS NOT NULL AND m.disabled=0 AND m.fileidForDB = (SELECT m2.fileidForDB FROM Movie m2 WHERE m2.title=m.title AND m2.disabled=0 ORDER BY (m2.poster_path IS NOT NULL) DESC, m2.fileidForDB DESC LIMIT 1) ORDER BY m.title COLLATE NOCASE")
     List<Movie> getAll();
 
     @Query("SELECT * FROM Movie WHERE id=:id and disabled=0")
