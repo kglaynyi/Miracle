@@ -1,0 +1,97 @@
+name: Fix Miracle Index Scanner
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-index-scanner.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Patch scanner
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('app/src/main/java/com/miracle/kglaynyi/utils/SendPostRequest.java')
+          s = p.read_text()
+
+          marker = '    private static int pageIndex = 0;\n'
+          if 'private static int scannedVideoCount' not in s:
+              s = s.replace(marker, marker + '''    private static int scannedVideoCount = 0;\n\n    public static synchronized void resetPagingState() {\n        nextPageToken = "";\n        pageIndex = 0;\n        scannedVideoCount = 0;\n    }\n\n    public static synchronized int getScannedVideoCount() {\n        return scannedVideoCount;\n    }\n\n    private static synchronized void markVideoScanned() {\n        scannedVideoCount++;\n    }\n''')
+
+          # Successful GoIndex requests previously never opened the response reader.
+          start = s.index('    public static void postRequestGoIndex')
+          end = s.index('    public static void postRequestMapleIndex', start)
+          sec = s[start:end]
+          needle = '            System.out.println(("HTTP CODE" + code));\n\n\n            int tryCount = 0;'
+          repl = '''            System.out.println(("HTTP CODE" + code));\n\n            if (code == HttpURLConnection.HTTP_OK && br == null) {\n                br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));\n                failed = false;\n            }\n\n            int tryCount = 0;'''
+          if needle in sec:
+              sec = sec.replace(needle, repl, 1)
+          sec = sec.replace('                    br = new BufferedReader(new InputStreamReader(conn.getInputStream() , StandardCharsets.UTF_8));\n',
+                            '                    br = new BufferedReader(new InputStreamReader(conn.getInputStream() , StandardCharsets.UTF_8));\n                    failed = false;\n')
+          s = s[:start] + sec + s[end:]
+
+          # Use MIME type when present, otherwise fall back to common video extensions.
+          video_pattern = re.compile(r'''if \(file\.getMimeType\(\)\.equals\("video/x-matroska"\)\s*\n\s*\|\| file\.getMimeType\(\)\.equals\("video/mp4"\)\s*\n\s*\|\| file\.getMimeType\(\)\.equals\("video/x-msvideo"\)\s*\n\s*\|\| file\.getMimeType\(\)\.equals\("video/mpeg"\)\s*\n\s*\|\| file\.getMimeType\(\)\.equals\("video/webm"\)\) \{''')
+          s, n = video_pattern.subn('if (isVideoFile(file)) {\n                        markVideoScanned();', s)
+          if n < 2:
+              raise SystemExit(f'Expected two video blocks, patched {n}')
+
+          s = s.replace('file.getMimeType().equals("application/vnd.google-apps.folder")', 'isFolder(file)')
+          s = s.replace('file.setUrlstring(urlString + file.getName());', 'file.setUrlstring(appendPath(urlString, file.getName(), false));')
+          s = s.replace('folders.add(urlString + file.getName() + "/");', 'folders.add(appendPath(urlString, file.getName(), true));')
+          s = s.replace('showFolders.add(urlString + file.getName() + "/");', 'showFolders.add(appendPath(urlString, file.getName(), true));')
+
+          # Avoid crashes on malformed/changed index responses.
+          s = re.sub(r'(ResFormat target = gson\.fromJson\([^;]+;)', r'\1\n                if (target == null || target.getData() == null) return;', s)
+
+          old_method = re.compile(r'''    private static boolean isAlreadyPresent\(String id , Date modifiedTime\) \{.*?\n    \}\n\n    private static String generateDownloadLinkSimpleProgram''', re.S)
+          new_method = '''    private static boolean isVideoFile(File file) {\n        if (file == null) return false;\n        String mime = file.getMimeType();\n        if (mime != null && mime.toLowerCase().startsWith("video/")) return true;\n        String name = file.getName();\n        if (name == null) return false;\n        String lower = name.toLowerCase();\n        return lower.endsWith(".mkv") || lower.endsWith(".mp4") || lower.endsWith(".avi")\n                || lower.endsWith(".mov") || lower.endsWith(".m4v") || lower.endsWith(".webm")\n                || lower.endsWith(".mpeg") || lower.endsWith(".mpg") || lower.endsWith(".ts")\n                || lower.endsWith(".m2ts") || lower.endsWith(".3gp") || lower.endsWith(".wmv");\n    }\n\n    private static boolean isFolder(File file) {\n        return file != null && "application/vnd.google-apps.folder".equals(file.getMimeType());\n    }\n\n    private static String appendPath(String base, String name, boolean folder) {\n        if (base == null) base = "";\n        if (!base.endsWith("/")) base += "/";\n        if (name == null) name = "";\n        try {\n            String encoded = URLEncoder.encode(name, "UTF-8").replace("+", "%20").replace("%2F", "/");\n            return base + encoded + (folder ? "/" : "");\n        } catch (Exception e) {\n            return base + name + (folder ? "/" : "");\n        }\n    }\n\n    private static boolean isAlreadyPresent(String id , Date modifiedTime) {\n        if (id == null || id.trim().isEmpty()) return false;\n        Movie movie = DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByGdId(id);\n        Episode episode = DatabaseClient.getInstance(context).getAppDatabase().episodeDao().findByGdId(id);\n\n        if (movie != null && modifiedTime != null && movie.getModifiedTime() != null\n                && modifiedTime.after(movie.getModifiedTime())) {\n            DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);\n            return false;\n        }\n        if (episode != null && modifiedTime != null && episode.getModifiedTime() != null\n                && modifiedTime.after(episode.getModifiedTime())) {\n            DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByGdId(id);\n            return false;\n        }\n        return movie != null || episode != null;\n    }\n\n    private static String generateDownloadLinkSimpleProgram'''
+          s, n = old_method.subn(new_method, s, count=1)
+          if n != 1:
+              raise SystemExit('Could not patch isAlreadyPresent helper block')
+
+          # Scanner methods should fail safely on parser/runtime changes instead of crashing their worker thread.
+          s = s.replace('        } catch (IOException e) {\n            System.out.println("IOExceptio Occured in gdIndex");',
+                        '        } catch (Exception e) {\n            System.out.println("Exception in GDIndex: " + e);')
+          s = s.replace('        } catch (IOException e) {\n            System.out.println("Exception in Goindex");',
+                        '        } catch (Exception e) {\n            System.out.println("Exception in GoIndex: " + e);')
+          s = s.replace('        } catch (IOException e) {\n            System.out.println("Exception in maple");',
+                        '        } catch (Exception e) {\n            System.out.println("Exception in MapleIndex: " + e);')
+          s = s.replace('        } catch (IOException e) {\n            System.out.println("Exception in simple");',
+                        '        } catch (Exception e) {\n            System.out.println("Exception in SimpleProgram: " + e);')
+
+          p.write_text(s)
+          PY
+
+      - name: Build
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Commit scanner fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/miracle/kglaynyi/utils/SendPostRequest.java
+          if ! git diff --cached --quiet; then
+            git commit -m "Fix index scanner and video detection"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
