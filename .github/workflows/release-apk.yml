@@ -51,3 +51,5 @@ jobs:
               --title "Miracle $VERSION" \
               --notes "First Miracle APK release. Based on Thunder by anujd64 and distributed under GPL-3.0. Package: com.miracle.kglaynyi"
           fi
+
+# Initial release trigger
