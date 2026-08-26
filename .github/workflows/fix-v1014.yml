@@ -37,33 +37,43 @@ jobs:
               p = Path(path)
               text = p.read_text()
               if old not in text:
-                  raise SystemExit(f'Expected block not found in {path}: {old[:100]!r}')
+                  raise SystemExit(f'Expected block not found in {path}: {old[:120]!r}')
               p.write_text(text.replace(old, new, 1))
 
-          # 1) Save discovered movies immediately, then enrich them with TMDB later.
+          # GDI-JS: expose discovered movies immediately and keep the correct index id.
           gdi = 'app/src/main/java/com/miracle/kglaynyi/utils/GdiJsIndexClient.java'
           replace_once(gdi,
+              'discoverFolder(apiRoot, session.cookie, visitedFolders, videoEntries, stats, listener);',
+              'discoverFolder(apiRoot, session.cookie, visitedFolders, videoEntries, stats, indexId, tvShows, listener);')
+          replace_once(gdi,
+          '''    private static void discoverFolder(String folderUrl, String cookie,
+                                       Set<String> visitedFolders, List<VideoEntry> videoEntries,
+                                       int[] stats, ProgressListener listener) throws Exception {''',
+          '''    private static void discoverFolder(String folderUrl, String cookie,
+                                       Set<String> visitedFolders, List<VideoEntry> videoEntries,
+                                       int[] stats, int indexId, boolean tvShows,
+                                       ProgressListener listener) throws Exception {''')
+          replace_once(gdi,
+              'discoverFolder(child, cookie, visitedFolders, videoEntries, stats, listener);',
+              'discoverFolder(child, cookie, visitedFolders, videoEntries, stats, indexId, tvShows, listener);')
+          replace_once(gdi,
           '''                        if (isVideoFile(file)) {
-                              stats[2]++;
-                              videoEntries.add(new VideoEntry(folderUrl, file));
-                          }
-          ''',
+                            stats[2]++;
+                            videoEntries.add(new VideoEntry(folderUrl, file));
+                        }''',
           '''                        if (isVideoFile(file)) {
-                              stats[2]++;
-                              saveDiscoveredPlaceholder(folderUrl, file);
-                              videoEntries.add(new VideoEntry(folderUrl, file));
-                          }
-          ''')
-
+                            stats[2]++;
+                            if (!tvShows) saveDiscoveredPlaceholder(folderUrl, file, indexId);
+                            videoEntries.add(new VideoEntry(folderUrl, file));
+                        }''')
           replace_once(gdi,
           '''    private static void processVideo(String rootUrl, String folderUrl, File file,
-                                       boolean tvShows, int indexId) {
-          ''',
-          '''    private static void saveDiscoveredPlaceholder(String folderUrl, File file) {
+                                     boolean tvShows, int indexId) {''',
+          '''    private static void saveDiscoveredPlaceholder(String folderUrl, File file, int indexId) {
               if (file == null) return;
-              String id = file.getId();
-              if (id != null && !id.trim().isEmpty()
-                      && DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByGdId(id) != null) {
+              String gdId = file.getId();
+              if (gdId != null && !gdId.trim().isEmpty()
+                      && DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByGdId(gdId) != null) {
                   return;
               }
 
@@ -73,7 +83,8 @@ jobs:
               movie.setModifiedTime(file.getModifiedTime());
               movie.setSize(file.getSize());
               movie.setUrlString(resolveFileUrl(folderUrl, folderUrl, file));
-              movie.setGd_id(id == null ? "" : id);
+              movie.setGd_id(gdId == null ? "" : gdId);
+              movie.setIndex_id(indexId);
               String title = fallbackMovieTitle(file.getName());
               movie.setTitle(title);
               movie.setOriginal_title(title);
@@ -81,39 +92,9 @@ jobs:
           }
 
               private static void processVideo(String rootUrl, String folderUrl, File file,
-                                       boolean tvShows, int indexId) {
-          ''')
+                                     boolean tvShows, int indexId) {''')
 
-          # Placeholder needs the correct index id; set it where discovered.
-          replace_once(gdi,
-          '''    private static void discoverFolder(String folderUrl, String cookie,
-                                         Set<String> visitedFolders, List<VideoEntry> videoEntries,
-                                         int[] stats, ProgressListener listener) throws Exception {
-          ''',
-          '''    private static int activeIndexId = 0;
-
-              private static void discoverFolder(String folderUrl, String cookie,
-                                         Set<String> visitedFolders, List<VideoEntry> videoEntries,
-                                         int[] stats, ProgressListener listener) throws Exception {
-          ''')
-          replace_once(gdi,
-          '''        String apiRoot = getDefaultApiRoot(baseUrl);
-              Set<String> visitedFolders = new HashSet<>();
-          ''',
-          '''        String apiRoot = getDefaultApiRoot(baseUrl);
-              activeIndexId = indexId;
-              Set<String> visitedFolders = new HashSet<>();
-          ''')
-          replace_once(gdi,
-          '''        movie.setGd_id(id == null ? "" : id);
-              String title = fallbackMovieTitle(file.getName());
-          ''',
-          '''        movie.setGd_id(id == null ? "" : id);
-              movie.setIndex_id(activeIndexId);
-              String title = fallbackMovieTitle(file.getName());
-          ''')
-
-          # 2) TMDB failure/no match must still leave a visible movie.
+          # TMDB: never leave an invisible null-title row on lookup/network failure.
           tmdb = 'app/src/main/java/com/miracle/kglaynyi/utils/SendGetRequestTMDB.java'
           replace_once(tmdb,
           '''        else if (movie.getTitle() == null) {
@@ -122,8 +103,7 @@ jobs:
           }
               }
 
-              private static String searchMovieOnTmdbByName(String titleExtracted , String yearExtracted) {
-          ''',
+              private static String searchMovieOnTmdbByName(String titleExtracted , String yearExtracted) {''',
           '''        else if (movie.getTitle() == null) {
               System.out.println("file with no tmdb info" + movie);
               ensureFallbackMovieTitle(movie);
@@ -137,15 +117,13 @@ jobs:
               if (name == null || name.trim().isEmpty()) name = "Untitled Video";
               int dot = name.lastIndexOf('.');
               if (dot > 0) name = name.substring(0, dot);
-              name = name.replace('.', ' ').replace('_', ' ').replaceAll("\\\\s+", " ").trim();
+              name = name.replace('.', ' ').replace('_', ' ').replaceAll("\\s+", " ").trim();
               if (name.isEmpty()) name = "Untitled Video";
               movie.setTitle(name);
               movie.setOriginal_title(name);
           }
 
-              private static String searchMovieOnTmdbByName(String titleExtracted , String yearExtracted) {
-          ''')
-
+              private static String searchMovieOnTmdbByName(String titleExtracted , String yearExtracted) {''')
           replace_once(tmdb,
           '''        try {
               Gson gson = new Gson();
@@ -155,8 +133,7 @@ jobs:
           }
 
 
-              movie.setFileName(fileName);
-          ''',
+              movie.setFileName(fileName);''',
           '''        try {
               Gson gson = new Gson();
               Movie parsedMovie = gson.fromJson(responseById.toString() , Movie.class);
@@ -171,17 +148,26 @@ jobs:
           }
 
 
-              movie.setFileName(fileName);
-          ''')
+              movie.setFileName(fileName);''')
 
-          # 3) Persist current scan progress outside the RecyclerView row.
-          idx = 'app/src/main/java/com/miracle/kglaynyi/utils/IndexUtils.java'
-          replace_once(idx,
-          '''import java.util.List;
+          # Persistent scan state (survives fragment/tab recreation).
+          Path('app/src/main/java/com/miracle/kglaynyi/utils/IndexUtils.java').write_text(r'''package com.miracle.kglaynyi.utils;
 
-          public class IndexUtils {
-          ''',
-          '''import java.util.List;
+          import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestGDIndex;
+          import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestGoIndex;
+          import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestMapleIndex;
+          import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestSimpleProgramIndex;
+          import static com.miracle.kglaynyi.utils.SendPostRequest.resetPagingState;
+
+          import android.content.Context;
+
+          import com.miracle.kglaynyi.database.DatabaseClient;
+          import com.miracle.kglaynyi.model.IndexLink;
+          import com.miracle.kglaynyi.model.TVShowInfo.Episode;
+          import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
+          import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
+
+          import java.util.List;
           import java.util.Map;
           import java.util.concurrent.ConcurrentHashMap;
 
@@ -192,171 +178,382 @@ jobs:
               public static GdiJsIndexClient.Progress getScanProgress(int indexId) {
                   return SCAN_PROGRESS.get(indexId);
               }
-          ''')
-          replace_once(idx,
-          '''                if ("GDI-JS".equals(indexType)) {
-                      GdiJsIndexClient.scan(link, user, pass, tvShows, id, listener);
-                      return;
-                  }
-          ''',
-          '''                if ("GDI-JS".equals(indexType)) {
-                      GdiJsIndexClient.scan(link, user, pass, tvShows, id,
-                              progress -> publishProgress(id, listener, progress));
-                      return;
-                  }
-          ''')
-          replace_once(idx,
-          '''                notifyProgress(listener, GdiJsIndexClient.Progress.status(
-                          "Refreshing index…", -1, 0, 0, 0, 0, 0, 0));
-          ''',
-          '''                publishProgress(id, listener, GdiJsIndexClient.Progress.status(
-                          "Refreshing index…", -1, 0, 0, 0, 0, 0, 0));
-          ''')
-          replace_once(idx,
-          '''                notifyProgress(listener, GdiJsIndexClient.Progress.done(
-                          "Refresh complete • " + count + " items", count, 0, count));
-          ''',
-          '''                publishProgress(id, listener, GdiJsIndexClient.Progress.done(
-                          "Refresh complete • " + count + " items", count, 0, count));
-          ''')
-          replace_once(idx,
-          '''    private static void notifyProgress(GdiJsIndexClient.ProgressListener listener,
-                                         GdiJsIndexClient.Progress progress) {
-              if (listener != null) listener.onProgress(progress);
-          }
-          ''',
-          '''    private static void publishProgress(int indexId,
-                                          GdiJsIndexClient.ProgressListener listener,
-                                          GdiJsIndexClient.Progress progress) {
-              SCAN_PROGRESS.put(indexId, progress);
-              notifyProgress(listener, progress);
-          }
 
-              private static void notifyProgress(GdiJsIndexClient.ProgressListener listener,
-                                         GdiJsIndexClient.Progress progress) {
-              if (listener != null) listener.onProgress(progress);
+              public static boolean refreshIndex(Context mContext, IndexLink indexLink) {
+                  return refreshIndex(mContext, indexLink, null);
+              }
+
+              public static boolean refreshIndex(Context mContext, IndexLink indexLink,
+                                                 GdiJsIndexClient.ProgressListener listener) {
+                  Thread thread = new Thread(() -> {
+                      int progressId = indexLink.getId();
+                      try {
+                          String folderType = indexLink.getFolderType();
+                          String indexType = indexLink.getIndexType();
+                          String link = indexLink.getLink();
+                          String user = indexLink.getUsername();
+                          String pass = indexLink.getPassword();
+
+                          IndexLink saved = DatabaseClient.getInstance(mContext)
+                                  .getAppDatabase().indexLinksDao().find(link);
+                          if (saved == null) {
+                              DatabaseClient.getInstance(mContext)
+                                      .getAppDatabase().indexLinksDao().insert(indexLink);
+                              saved = DatabaseClient.getInstance(mContext)
+                                      .getAppDatabase().indexLinksDao().find(link);
+                          }
+                          if (saved == null) {
+                              publishProgress(progressId, listener,
+                                      GdiJsIndexClient.Progress.failed("Could not find saved index"));
+                              return;
+                          }
+
+                          int id = saved.getId();
+                          progressId = id;
+                          boolean tvShows = "TVShows".equals(folderType);
+
+                          if ("GDI-JS".equals(indexType)) {
+                              final int scanId = id;
+                              GdiJsIndexClient.scan(link, user, pass, tvShows, id,
+                                      progress -> publishProgress(scanId, listener, progress));
+                              return;
+                          }
+
+                          publishProgress(id, listener, GdiJsIndexClient.Progress.status(
+                                  "Refreshing index…", -1, 0, 0, 0, 0, 0, 0));
+                          resetPagingState();
+                          if ("GDIndex".equals(indexType)) {
+                              postRequestGDIndex(link, user, pass, tvShows, id);
+                          } else if ("GoIndex".equals(indexType)) {
+                              postRequestGoIndex(link, user, pass, tvShows, id);
+                          } else if ("MapleIndex".equals(indexType) || "Maple".equals(indexType)) {
+                              postRequestMapleIndex(link, user, pass, tvShows, id);
+                          } else if ("SimpleProgram".equals(indexType)) {
+                              postRequestSimpleProgramIndex(link, user, pass, tvShows, id);
+                          }
+
+                          int count = getNoOfMedia(mContext, saved);
+                          publishProgress(id, listener, GdiJsIndexClient.Progress.done(
+                                  "Refresh complete • " + count + " items", count, 0, count));
+                      } catch (Exception e) {
+                          String message = e.getMessage();
+                          if (message == null || message.trim().isEmpty()) message = e.getClass().getSimpleName();
+                          publishProgress(progressId, listener, GdiJsIndexClient.Progress.failed(
+                                  "Refresh failed • " + message));
+                          System.out.println("Index refresh failed: " + e);
+                      }
+                  });
+                  thread.start();
+                  return thread.isAlive();
+              }
+
+              private static void publishProgress(int indexId,
+                                                  GdiJsIndexClient.ProgressListener listener,
+                                                  GdiJsIndexClient.Progress progress) {
+                  SCAN_PROGRESS.put(indexId, progress);
+                  if (listener != null) listener.onProgress(progress);
+              }
+
+              public static boolean deleteIndex(Context mContext, IndexLink indexLink) {
+                  Thread thread = new Thread(() -> {
+                      if (indexLink.getFolderType().equals("Movies")) {
+                          DatabaseClient.getInstance(mContext).getAppDatabase().movieDao().deleteAllFromthisIndex(indexLink.getId());
+                      }
+                      if (indexLink.getFolderType().equals("TVShows")) {
+                          DatabaseClient.getInstance(mContext).getAppDatabase().episodeDao().deleteAllFromThisIndex(indexLink.getId());
+                          List<TVShowSeasonDetails> seasonsList = DatabaseClient.getInstance(mContext).getAppDatabase().tvShowSeasonDetailsDao().getAll();
+                          for (TVShowSeasonDetails season : seasonsList) {
+                              List<Episode> episodeList = DatabaseClient.getInstance(mContext).getAppDatabase().episodeDao().getFromSeasonOnly(season.getId());
+                              if (episodeList == null || episodeList.size() == 0) {
+                                  DatabaseClient.getInstance(mContext).getAppDatabase().tvShowSeasonDetailsDao().deleteById(season.getId());
+                              }
+                          }
+                          List<TVShow> tvShowList = DatabaseClient.getInstance(mContext).getAppDatabase().tvShowDao().getAll();
+                          for (TVShow tvShow : tvShowList) {
+                              List<TVShowSeasonDetails> seasonsInThisShow = DatabaseClient.getInstance(mContext).getAppDatabase().tvShowSeasonDetailsDao().findByShowId(tvShow.getId());
+                              if (seasonsInThisShow == null || seasonsInThisShow.size() == 0) {
+                                  DatabaseClient.getInstance(mContext).getAppDatabase().tvShowDao().deleteById(tvShow.getId());
+                              }
+                          }
+                      }
+                      DatabaseClient.getInstance(mContext).getAppDatabase().indexLinksDao().deleteById(indexLink.getId());
+                      SCAN_PROGRESS.remove(indexLink.getId());
+                  });
+                  thread.start();
+                  try { thread.join(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                  return thread.isAlive();
+              }
+
+              public static int getNoOfMedia(Context mContext, IndexLink t) {
+                  final int[] result = new int[]{0};
+                  Thread thread = new Thread(() -> {
+                      if (t.getFolderType() != null && t.getFolderType().equals("Movies")) {
+                          result[0] = DatabaseClient.getInstance(mContext).getAppDatabase().movieDao().getNoOfMovies(t.getId());
+                      }
+                      if (t.getFolderType() != null && t.getFolderType().equals("TVShows")) {
+                          result[0] = DatabaseClient.getInstance(mContext).getAppDatabase().episodeDao().getNoOfShows(t.getId());
+                      }
+                  });
+                  thread.start();
+                  try { thread.join(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                  return result[0];
+              }
+
+              public static void disableIndex(Context mContext, IndexLink indexLink) {
+                  new Thread(() -> {
+                      if (indexLink.getFolderType().equals("Movies")) {
+                          DatabaseClient.getInstance(mContext).getAppDatabase().movieDao().disableFromThisIndex(indexLink.getId());
+                      }
+                      if (indexLink.getFolderType().equals("TVShows")) {
+                          DatabaseClient.getInstance(mContext).getAppDatabase().episodeDao().disableFromThisIndex(indexLink.getId());
+                      }
+                      DatabaseClient.getInstance(mContext).getAppDatabase().indexLinksDao().disableIndex(indexLink.getId());
+                  }).start();
+              }
+
+              public static void enableIndex(Context mContext, IndexLink indexLink) {
+                  new Thread(() -> {
+                      if (indexLink.getFolderType().equals("Movies")) {
+                          DatabaseClient.getInstance(mContext).getAppDatabase().movieDao().enableFromThisIndex(indexLink.getId());
+                      }
+                      if (indexLink.getFolderType().equals("TVShows")) {
+                          DatabaseClient.getInstance(mContext).getAppDatabase().episodeDao().enableFromThisIndex(indexLink.getId());
+                      }
+                      DatabaseClient.getInstance(mContext).getAppDatabase().indexLinksDao().enableIndex(indexLink.getId());
+                  }).start();
+              }
           }
           ''')
 
-          # 4) Manage Indexes restores and keeps polling persistent progress after tab switches.
-          adapter = 'app/src/main/java/com/miracle/kglaynyi/adapter/IndexAdapter.java'
-          replace_once(adapter,
-          '''import static com.miracle.kglaynyi.utils.IndexUtils.getNoOfMedia;
-          import static com.miracle.kglaynyi.utils.IndexUtils.refreshIndex;
-          ''',
-          '''import static com.miracle.kglaynyi.utils.IndexUtils.getNoOfMedia;
+          Path('app/src/main/java/com/miracle/kglaynyi/adapter/IndexAdapter.java').write_text(r'''package com.miracle.kglaynyi.adapter;
+
+          import static com.miracle.kglaynyi.utils.IndexUtils.deleteIndex;
+          import static com.miracle.kglaynyi.utils.IndexUtils.disableIndex;
+          import static com.miracle.kglaynyi.utils.IndexUtils.enableIndex;
+          import static com.miracle.kglaynyi.utils.IndexUtils.getNoOfMedia;
           import static com.miracle.kglaynyi.utils.IndexUtils.getScanProgress;
           import static com.miracle.kglaynyi.utils.IndexUtils.refreshIndex;
-          ''')
-          replace_once(adapter,
-          '''        int noOfMedia = getNoOfMedia(holder.itemView.getContext(), t);
-              holder.noOfMedia.setText(noOfMedia + " " + t.getFolderType());
-              holder.refreshIndex.setEnabled(true);
-          ''',
-          '''        bindProgress(holder, t);
-          ''')
-          replace_once(adapter,
-          '''            holder.noOfMedia.setText("Connecting…");
 
-              refreshIndex(context, t, progress -> {
-          ''',
-          '''            holder.noOfMedia.setText("Connecting…");
-              if (holder.progressRunnable != null) {
-                  mainHandler.postDelayed(holder.progressRunnable, 200);
+          import android.content.Context;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.LayoutInflater;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.widget.ImageButton;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import androidx.appcompat.widget.SwitchCompat;
+          import androidx.recyclerview.widget.RecyclerView;
+
+          import com.miracle.kglaynyi.R;
+          import com.miracle.kglaynyi.model.IndexLink;
+          import com.miracle.kglaynyi.utils.GdiJsIndexClient;
+
+          import java.util.List;
+
+          public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHolder> {
+              private final Context mCtx;
+              private final List<IndexLink> indexLinkList;
+              private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+              public IndexAdapter(Context mCtx, List<IndexLink> indexLinkList) {
+                  this.mCtx = mCtx;
+                  this.indexLinkList = indexLinkList;
               }
 
-              refreshIndex(context, t, progress -> {
-          ''')
-          replace_once(adapter,
-          '''    @Override
-              public int getItemCount() {
-          ''',
-          '''    private void bindProgress(IndexViewHolder holder, IndexLink indexLink) {
-              if (holder.progressRunnable != null) {
-                  mainHandler.removeCallbacks(holder.progressRunnable);
+              @Override
+              public IndexViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+                  View view = LayoutInflater.from(mCtx).inflate(R.layout.index_item, parent, false);
+                  return new IndexViewHolder(view);
               }
-              holder.boundIndexId = indexLink.getId();
-              holder.progressRunnable = new Runnable() {
-                  @Override
-                  public void run() {
-                      if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION
-                              || holder.boundIndexId != indexLink.getId()) return;
 
-                      com.miracle.kglaynyi.utils.GdiJsIndexClient.Progress progress =
-                              getScanProgress(indexLink.getId());
-                      if (progress != null && !progress.finished) {
-                          holder.noOfMedia.setText(progress.message);
-                          holder.refreshIndex.setEnabled(false);
-                          mainHandler.postDelayed(this, 500);
-                      } else if (progress != null && progress.error) {
-                          holder.noOfMedia.setText(progress.message);
-                          holder.refreshIndex.setEnabled(true);
-                      } else {
-                          int count = getNoOfMedia(holder.itemView.getContext(), indexLink);
-                          holder.noOfMedia.setText(count + " " + indexLink.getFolderType());
-                          holder.refreshIndex.setEnabled(true);
+              @Override
+              public void onBindViewHolder(IndexViewHolder holder, int position) {
+                  IndexLink t = indexLinkList.get(position);
+                  holder.textViewLink.setText(t.getLink());
+                  holder.indexType.setText(t.getIndexType());
+                  holder.folderType.setText(t.getFolderType());
+                  bindProgress(holder, t);
+
+                  holder.refreshIndex.setOnClickListener(view -> {
+                      Context context = holder.itemView.getContext();
+                      holder.refreshIndex.setEnabled(false);
+                      holder.noOfMedia.setText("Connecting…");
+                      refreshIndex(context, t, progress -> {
+                          if (progress.finished && !progress.error) {
+                              int finalCount = getNoOfMedia(context, t);
+                              mainHandler.post(() -> Toast.makeText(context,
+                                      "Scan complete: " + finalCount + " " + t.getFolderType(),
+                                      Toast.LENGTH_SHORT).show());
+                          } else if (progress.error) {
+                              mainHandler.post(() -> Toast.makeText(context, progress.message,
+                                      Toast.LENGTH_LONG).show());
+                          }
+                      });
+                      if (holder.progressRunnable != null) mainHandler.postDelayed(holder.progressRunnable, 200);
+                  });
+
+                  holder.delete.setOnClickListener(view -> {
+                      if (!deleteIndex(holder.itemView.getContext(), t)) {
+                          Toast.makeText(view.getContext(), "Deleted", Toast.LENGTH_LONG).show();
                       }
-                  }
-              };
-              holder.progressRunnable.run();
-          }
+                  });
+
+                  holder.enableIndex.setOnCheckedChangeListener(null);
+                  holder.enableIndex.setChecked(t.getDisabled() != 1);
+                  holder.enableIndex.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                      if (!isChecked) disableIndex(holder.itemView.getContext(), t);
+                      else enableIndex(holder.itemView.getContext(), t);
+                  });
+              }
+
+              private void bindProgress(IndexViewHolder holder, IndexLink indexLink) {
+                  if (holder.progressRunnable != null) mainHandler.removeCallbacks(holder.progressRunnable);
+                  holder.boundIndexId = indexLink.getId();
+                  holder.progressRunnable = new Runnable() {
+                      @Override
+                      public void run() {
+                          if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION
+                                  || holder.boundIndexId != indexLink.getId()) return;
+                          GdiJsIndexClient.Progress progress = getScanProgress(indexLink.getId());
+                          if (progress != null && !progress.finished) {
+                              holder.noOfMedia.setText(progress.message);
+                              holder.refreshIndex.setEnabled(false);
+                              mainHandler.postDelayed(this, 500);
+                          } else if (progress != null && progress.error) {
+                              holder.noOfMedia.setText(progress.message);
+                              holder.refreshIndex.setEnabled(true);
+                          } else {
+                              int count = getNoOfMedia(holder.itemView.getContext(), indexLink);
+                              holder.noOfMedia.setText(count + " " + indexLink.getFolderType());
+                              holder.refreshIndex.setEnabled(true);
+                          }
+                      }
+                  };
+                  holder.progressRunnable.run();
+              }
 
               @Override
               public void onViewRecycled(IndexViewHolder holder) {
-              if (holder.progressRunnable != null) {
-                  mainHandler.removeCallbacks(holder.progressRunnable);
+                  if (holder.progressRunnable != null) mainHandler.removeCallbacks(holder.progressRunnable);
+                  super.onViewRecycled(holder);
               }
-              super.onViewRecycled(holder);
-          }
 
               @Override
               public int getItemCount() {
-          ''')
-          replace_once(adapter,
-          '''        SwitchCompat enableIndex;
+                  return indexLinkList == null ? 0 : indexLinkList.size();
+              }
 
-              public IndexViewHolder(View itemView) {
-          ''',
-          '''        SwitchCompat enableIndex;
-              Runnable progressRunnable;
-              int boundIndexId;
+              protected class IndexViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+                  TextView textViewLink, indexType, folderType, noOfMedia;
+                  ImageButton refreshIndex;
+                  ImageButton delete;
+                  SwitchCompat enableIndex;
+                  Runnable progressRunnable;
+                  int boundIndexId;
 
-              public IndexViewHolder(View itemView) {
-          ''')
+                  public IndexViewHolder(View itemView) {
+                      super(itemView);
+                      textViewLink = itemView.findViewById(R.id.textViewLink);
+                      indexType = itemView.findViewById(R.id.indexTypeInIndexAdapter);
+                      folderType = itemView.findViewById(R.id.folderTypeInIndexAdapter);
+                      noOfMedia = itemView.findViewById(R.id.noOfMedia);
+                      refreshIndex = itemView.findViewById(R.id.refreshButton);
+                      delete = itemView.findViewById(R.id.deletebutton);
+                      enableIndex = itemView.findViewById(R.id.enableIndexToggle);
+                      itemView.setOnClickListener(this);
+                  }
 
-          # 5) Library must reload database instead of caching the first empty result forever.
-          library = 'app/src/main/java/com/miracle/kglaynyi/fragments/MovieLibraryFragment.java'
-          replace_once(library,
-          '''    void showLibraryMovies() {
-              setOnClickListner();
-          ''',
-          '''    @Override
-              public void onResume() {
-              super.onResume();
-              if (getView() != null) showLibraryMovies();
+                  @Override public void onClick(View v) { }
+              }
           }
+          ''')
+
+          Path('app/src/main/java/com/miracle/kglaynyi/fragments/MovieLibraryFragment.java').write_text(r'''package com.miracle.kglaynyi.fragments;
+
+          import android.os.Bundle;
+          import android.util.DisplayMetrics;
+          import android.util.Log;
+          import android.view.LayoutInflater;
+          import android.view.View;
+          import android.view.ViewGroup;
+
+          import androidx.annotation.NonNull;
+          import androidx.annotation.Nullable;
+          import androidx.recyclerview.widget.GridLayoutManager;
+          import androidx.recyclerview.widget.RecyclerView;
+
+          import com.miracle.kglaynyi.R;
+          import com.miracle.kglaynyi.adapter.MediaAdapter;
+          import com.miracle.kglaynyi.database.DatabaseClient;
+          import com.miracle.kglaynyi.model.Movie;
+          import com.miracle.kglaynyi.model.MyMedia;
+
+          import java.util.List;
+
+          public class MovieLibraryFragment extends BaseFragment {
+              RecyclerView recyclerViewMovies;
+              MediaAdapter mediaAdapter;
+              MediaAdapter.OnItemClickListener listenerMovie;
+              List<Movie> movieList;
+
+              @Override
+              public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+                  return inflater.inflate(R.layout.fragment_movie_library, container, false);
+              }
+
+              @Override
+              public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+                  super.onViewCreated(view, savedInstanceState);
+                  showLibraryMovies();
+              }
+
+              @Override
+              public void onResume() {
+                  super.onResume();
+                  if (getView() != null) showLibraryMovies();
+              }
 
               void showLibraryMovies() {
-              setOnClickListner();
-          ''')
-          replace_once(library,
-          '''                if(movieList ==null){
+                  setOnClickListner();
+                  new Thread(() -> {
+                      movieList = DatabaseClient.getInstance(mActivity).getAppDatabase().movieDao().getAll();
+                      showRecyclerMovies(movieList);
+                  }).start();
+              }
 
-                      movieList = DatabaseClient
-                              .getInstance(mActivity)
-                              .getAppDatabase()
-                              .movieDao().getAll();
-                  }
-                  showRecyclerMovies(movieList);
-          ''',
-          '''                movieList = DatabaseClient
-                          .getInstance(mActivity)
-                          .getAppDatabase()
-                          .movieDao().getAll();
-                  showRecyclerMovies(movieList);
+              private void showRecyclerMovies(List<Movie> newmediaList) {
+                  mActivity.runOnUiThread(() -> {
+                      if (newmediaList == null) return;
+                      DisplayMetrics displayMetrics = mActivity.getResources().getDisplayMetrics();
+                      float dpWidth = displayMetrics.widthPixels / displayMetrics.density;
+                      int noOfItems = Math.max(1, (int) (dpWidth / 120));
+                      Log.i("MovieLibrary", "Loaded " + newmediaList.size() + " movies");
+                      recyclerViewMovies = mActivity.findViewById(R.id.recyclerLibraryMovies);
+                      if (recyclerViewMovies != null) {
+                          recyclerViewMovies.setLayoutManager(new GridLayoutManager(mActivity, noOfItems));
+                          recyclerViewMovies.setHasFixedSize(true);
+                          mediaAdapter = new MediaAdapter(mActivity, (List<MyMedia>)(List<?>) newmediaList, listenerMovie);
+                          recyclerViewMovies.setAdapter(mediaAdapter);
+                      }
+                  });
+              }
+
+              private void setOnClickListner() {
+                  listenerMovie = (view, position) -> {
+                      if (movieList == null || position < 0 || position >= movieList.size()) return;
+                      MovieDetailsFragment movieDetailsFragment = new MovieDetailsFragment(movieList.get(position).getId());
+                      mActivity.getSupportFragmentManager().beginTransaction()
+                              .setCustomAnimations(R.anim.fade_in, R.anim.fade_out)
+                              .add(R.id.container, movieDetailsFragment).addToBackStack(null).commit();
+                  };
+              }
+          }
           ''')
 
-          # 6) Home reloads when revisited so newly enriched posters appear.
+          # Home reloads database-backed sections whenever it becomes visible again.
           home = 'app/src/main/java/com/miracle/kglaynyi/fragments/HomeFragment.java'
           replace_once(home,
           '''        loadRecentlyAddedMovies();
@@ -366,19 +563,16 @@ jobs:
               loadWatchlist();
               loadNewSeason();
               loadTopRatedShows();
-              setOnClickListner();
-          ''',
+              setOnClickListner();''',
           '''        setOnClickListner();
-              refreshHomeContent();
-          ''')
+              refreshHomeContent();''')
           replace_once(home,
           '''//        getLists();
           //        loadRecyclerViews();
 
               }
 
-              private void loadWatchlist() {
-          ''',
+              private void loadWatchlist() {''',
           '''//        getLists();
           //        loadRecyclerViews();
 
@@ -400,26 +594,21 @@ jobs:
               loadTopRatedShows();
           }
 
-              private void loadWatchlist() {
-          ''')
+              private void loadWatchlist() {''')
 
-          # 7) Bump version.
-          gradle = 'app/build.gradle'
-          replace_once(gradle, 'versionCode 7\n        versionName "1.0.13"',
-                              'versionCode 8\n        versionName "1.0.14"')
-
-          # 8) Keep release notes short and remove repeated package/license boilerplate.
-          workflow = '.github/workflows/release-apk.yml'
-          text = Path(workflow).read_text()
-          start = 'NOTES="'
-          pos = text.find(start)
-          if pos == -1:
-              raise SystemExit('Release NOTES assignment not found')
-          end = text.find('"\n', pos + len(start))
-          if end == -1:
-              raise SystemExit('Release NOTES end not found')
-          text = text[:pos] + 'NOTES="Fixes movie/poster loading, persistent scan progress across tabs, and faster visible library updates during GDI-JS scans.' + text[end:]
-          Path(workflow).write_text(text)
+          # Version + short future release notes.
+          replace_once('app/build.gradle',
+                       'versionCode 7\n        versionName "1.0.13"',
+                       'versionCode 8\n        versionName "1.0.14"')
+          release = Path('.github/workflows/release-apk.yml')
+          text = release.read_text()
+          old_prefix = '          NOTES="'
+          line = next((ln for ln in text.splitlines() if ln.startswith(old_prefix)), None)
+          if line is None:
+              raise SystemExit('Release NOTES line not found')
+          text = text.replace(line,
+              '          NOTES="Fixes movie/poster loading, persistent scan progress across tabs, and faster visible library updates during GDI-JS scans."', 1)
+          release.write_text(text)
           PY
 
       - name: Build and validate
