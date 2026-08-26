@@ -109,14 +109,19 @@ public class SendGetRequestTMDB {
                         titlesAndYearsFromTMDB.add(moviesResponseFromTMDB.results.get(i).getTitle() + " " + releaseDate.split("-")[0]);
                     }
             }
-            int finalIndex = 0;
+            int finalIndex = -1;
             if (!titleExtracted.equals("")) {
                 String matchText = titleExtracted;
                 if (!yearExtracted.equals("0")) matchText += " " + yearExtracted;
                 finalIndex = findIndexOfClosestMatch(matchText, titlesAndYearsFromTMDB);
             }
-            int movieId = moviesResponseFromTMDB.results.get(finalIndex).getId();
-            getMovieById(movieId , movie);
+            if (finalIndex >= 0 && finalIndex < moviesResponseFromTMDB.results.size()) {
+                int movieId = moviesResponseFromTMDB.results.get(finalIndex).getId();
+                getMovieById(movieId , movie);
+            } else {
+                ensureFallbackMovieTitle(movie);
+                upsertMovieByGdId(movie);
+            }
         }
 
         else if (movie.getTitle() == null) {
@@ -209,26 +214,28 @@ public class SendGetRequestTMDB {
 
     private static String searchMovieOnTmdbByName(String titleExtracted , String yearExtracted) {
         StringBuilder response = new StringBuilder();
+        if (titleExtracted == null || titleExtracted.trim().isEmpty()) return "";
         try {
-            String finalUrl = TMDB_BASE_URL + "search/movie?api_key=" + TMDB_API_KEY + "&year=" + yearExtracted + "&language=en-US&page=1&include_adult=false&query=" + URLEncoder.encode(titleExtracted , "UTF-8");
-            URL url = new URL(finalUrl);
+            StringBuilder finalUrl = new StringBuilder(TMDB_BASE_URL)
+                    .append("search/movie?api_key=").append(TMDB_API_KEY)
+                    .append("&language=en-US&page=1&include_adult=false&query=")
+                    .append(URLEncoder.encode(titleExtracted.trim(), "UTF-8"));
+            if (yearExtracted != null && yearExtracted.matches("\\d{4}")) {
+                finalUrl.append("&year=").append(yearExtracted);
+            }
+            URL url = new URL(finalUrl.toString());
             System.out.println("TMDB GET REQUEST URL INSIDE searchMovieOnTmdbByName " + finalUrl);
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("GET");
             int responseCode = con.getResponseCode();
             System.out.println("TMDB RESPONSE CODE" + responseCode);
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(
-                        con.getInputStream()));
+                BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
                 String inputLine;
-                response = new StringBuilder();
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
+                while ((inputLine = in.readLine()) != null) response.append(inputLine);
                 in.close();
-            } else {
-                System.out.println("GET request did not work");
             }
+            con.disconnect();
         } catch (IOException | JsonSyntaxException e) {
             e.printStackTrace();
         }
@@ -386,23 +393,14 @@ public class SendGetRequestTMDB {
                     Log.i("tvShowsResponseFromTMDB" , tvShowsResponseFromTMDB.toString());
 
                     /*better method for selection of tv show */
-                    if (tvShowsResponseFromTMDB.results.size() > 0) {
-                        ArrayList<String> tvTitlesFromTMDB = new ArrayList<>();
-
-                        for (int i = 0; i < tvShowsResponseFromTMDB.getResults().size(); i++) {
-                            Result tv = tvShowsResponseFromTMDB.getResults().get(i);
-                            tvTitlesFromTMDB.add(tv.getName());
+                    if (tvShowsResponseFromTMDB != null && tvShowsResponseFromTMDB.results != null
+                            && !tvShowsResponseFromTMDB.results.isEmpty()) {
+                        int finalIndex = findBestTvMatch(finalShowName, tvShowsResponseFromTMDB.results);
+                        if (finalIndex >= 0) {
+                            tvShowId = tvShowsResponseFromTMDB.results.get(finalIndex).getId();
+                        } else {
+                            Log.w("TMDB", "No confident TV match for " + finalShowName);
                         }
-                        ExtractedResult matchedTvTitle;
-                        int finalIndex = 0;
-                        matchedTvTitle = FuzzySearch.extractOne(finalShowName , tvTitlesFromTMDB);
-                        if (matchedTvTitle.getScore() == 100) {
-                            finalIndex = matchedTvTitle.getIndex();
-                        } else if (matchedTvTitle.getScore() > 70) {
-                            finalIndex = matchedTvTitle.getIndex();
-                        }
-                        tvShowId = tvShowsResponseFromTMDB.results.get(finalIndex).getId();
-
                     }
 
                     if (tvShowId != 0) {
@@ -599,45 +597,36 @@ public class SendGetRequestTMDB {
 
 
                 try {
-                    System.out.println("getTVSeasonById2 tvShowSeasonDetails " + tvShowSeasonDetails.toString());
-                    for (Episode e: tvShowSeasonDetails.getEpisodes()) {
-                        if(Integer.parseInt(finalEpisodeNumber)== e.getEpisode_number()){
+                    if (tvShowSeasonDetails == null || tvShowSeasonDetails.getEpisodes() == null
+                            || finalEpisodeNumber == null) return;
 
-                                System.out.println("Episode before inserting in db found in tvseason details" + e.toString());
-                                e.setFileName(episode.getFileName());
-                                e.setMimeType(episode.getMimeType());
-                                e.setModifiedTime(episode.getModifiedTime());
-                                e.setSize(episode.getSize());
-                                e.setUrlString(episode.getUrlString());
-                                e.setGd_id(episode.getGd_id());
-                                e.setIndex_id(episode.getIndex_id());
-
-                                e.setSeason_id(tvShowSeasonDetails.getId());
-                                e.setShow_id(tvShowId);
-
-                                DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByLink(e.getGd_id());
-
-                                DatabaseClient.getInstance(context).getAppDatabase().episodeDao().insert(e);
-                                System.out.println("Episode after inserting in db" + Integer.parseInt(finalEpisodeNumber) + " Ep from the season details" + e.getEpisode_number());
-
+                    int wantedEpisode = Integer.parseInt(finalEpisodeNumber);
+                    Episode matchedEpisode = null;
+                    for (Episode candidate : tvShowSeasonDetails.getEpisodes()) {
+                        if (candidate != null && candidate.getEpisode_number() == wantedEpisode) {
+                            matchedEpisode = candidate;
+                            break;
                         }
-                        else {
-                            episode.setShow_id(tvShowId);
-                            DatabaseClient.getInstance(context).getAppDatabase().episodeDao().insert(episode);
-                        }
-
                     }
 
-//                    Episode e = tvShowSeasonDetails.getEpisodes().stream()
-//                            .filter(episode1 -> (Integer.parseInt(finalEpisodeNumber) == episode1.getEpisode_number()))
-//                            .findAny()
-//                            .orElse(null);
+                    Episode row = matchedEpisode != null ? matchedEpisode : episode;
+                    row.setFileName(episode.getFileName());
+                    row.setMimeType(episode.getMimeType());
+                    row.setModifiedTime(episode.getModifiedTime());
+                    row.setSize(episode.getSize());
+                    row.setUrlString(episode.getUrlString());
+                    row.setGd_id(episode.getGd_id());
+                    row.setIndex_id(episode.getIndex_id());
+                    row.setSeason_id(tvShowSeasonDetails.getId());
+                    row.setShow_id(tvShowId);
 
-
-
-                } catch (NullPointerException e) {
-
-                    System.out.println("caught exception in getTVSeasonById2.2");
+                    if (episode.getGd_id() != null && !episode.getGd_id().trim().isEmpty()) {
+                        DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
+                                .deleteByGdId(episode.getGd_id());
+                    }
+                    DatabaseClient.getInstance(context).getAppDatabase().episodeDao().insert(row);
+                } catch (Exception e) {
+                    System.out.println("caught exception in getTVSeasonById2.2 " + e);
                 }
 
             }
@@ -664,16 +653,55 @@ public class SendGetRequestTMDB {
 
     }
 
+    private static String normalizeMediaTitle(String value) {
+        if (value == null) return "";
+        return value.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]+", " ")
+                .replaceAll("\\s+", " ").trim();
+    }
+
+    private static int findBestTvMatch(String query, List<Result> results) {
+        if (query == null || results == null || results.isEmpty()) return -1;
+        String normalizedQuery = normalizeMediaTitle(query);
+        ArrayList<String> candidates = new ArrayList<>();
+        ArrayList<Integer> indexes = new ArrayList<>();
+
+        for (int i = 0; i < results.size(); i++) {
+            Result result = results.get(i);
+            if (result == null) continue;
+            String name = result.getName();
+            String original = result.getOriginal_name();
+            if (!normalizeMediaTitle(name).isEmpty()) {
+                if (normalizeMediaTitle(name).equals(normalizedQuery)) return i;
+                candidates.add(name);
+                indexes.add(i);
+            }
+            if (!normalizeMediaTitle(original).isEmpty()
+                    && !normalizeMediaTitle(original).equals(normalizeMediaTitle(name))) {
+                if (normalizeMediaTitle(original).equals(normalizedQuery)) return i;
+                candidates.add(original);
+                indexes.add(i);
+            }
+        }
+        if (candidates.isEmpty()) return -1;
+        try {
+            ExtractedResult match = FuzzySearch.extractOne(query, candidates);
+            return match != null && match.getScore() >= 72 ? indexes.get(match.getIndex()) : -1;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
     private static int findIndexOfClosestMatch(String s , ArrayList<String> titlesAndYearsFromTMDB) {
         try {
             ExtractedResult result = FuzzySearch.extractOne(s , titlesAndYearsFromTMDB);
             System.out.println("findIndexOfClosestMatch FuzzySearch RESULT" + result.toString());
             System.out.println("final Title chosen by findIndexOfClosestMatch" + result.getString());
-            return result.getIndex();
+            return result.getScore() >= 70 ? result.getIndex() : -1;
         } catch (JsonSyntaxException | NoSuchElementException elementException) {
             elementException.printStackTrace();
         }
-        return 0;
+        return -1;
     }
 
     static String urlLogo = "";

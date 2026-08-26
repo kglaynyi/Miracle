@@ -13,6 +13,8 @@ import com.miracle.kglaynyi.model.File;
 import com.miracle.kglaynyi.model.Movie;
 import com.miracle.kglaynyi.model.ResFormat;
 import com.miracle.kglaynyi.model.TVShowInfo.Episode;
+import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
+import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -166,6 +168,10 @@ public final class GdiJsIndexClient {
         String baseUrl = normalizeBaseUrl(rawBaseUrl);
         Session session = login(baseUrl, username, password);
         if (!session.success) throw new IOException(session.message);
+
+        emit(listener, Progress.status("Preparing library for a clean metadata scan…", -1,
+                0, 0, 0, 0, 0, 0));
+        clearIndexMediaForRescan(indexId);
 
         emit(listener, Progress.status("Login verified. Discovering videos…", -1,
                 0, 0, 0, 0, 0, 0));
@@ -365,6 +371,35 @@ public final class GdiJsIndexClient {
             return result;
         } finally {
             conn.disconnect();
+        }
+    }
+
+    private static void clearIndexMediaForRescan(int indexId) {
+        DatabaseClient db = DatabaseClient.getInstance(context);
+        db.getAppDatabase().movieDao().deleteAllFromthisIndex(indexId);
+        db.getAppDatabase().episodeDao().deleteAllFromThisIndex(indexId);
+
+        // Season/show rows are shared metadata, so only remove them when no episode
+        // from any enabled index still references them.
+        List<TVShowSeasonDetails> seasons = db.getAppDatabase().tvShowSeasonDetailsDao().getAll();
+        if (seasons != null) {
+            for (TVShowSeasonDetails season : seasons) {
+                List<Episode> episodes = db.getAppDatabase().episodeDao().getFromSeasonOnly(season.getId());
+                if (episodes == null || episodes.isEmpty()) {
+                    db.getAppDatabase().tvShowSeasonDetailsDao().deleteById(season.getId());
+                }
+            }
+        }
+
+        List<TVShow> shows = db.getAppDatabase().tvShowDao().getAll();
+        if (shows != null) {
+            for (TVShow show : shows) {
+                List<TVShowSeasonDetails> showSeasons = db.getAppDatabase()
+                        .tvShowSeasonDetailsDao().findByShowId(show.getId());
+                if (showSeasons == null || showSeasons.isEmpty()) {
+                    db.getAppDatabase().tvShowDao().deleteById(show.getId());
+                }
+            }
         }
     }
 

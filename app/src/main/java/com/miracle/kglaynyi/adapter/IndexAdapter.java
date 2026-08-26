@@ -49,9 +49,9 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
         holder.indexType.setText(t.getIndexType());
         holder.folderType.setText(t.getFolderType());
 
-        int noOfMedia = getNoOfMedia(holder.itemView.getContext(), t);
-        holder.noOfMedia.setText(noOfMedia + " " + t.getFolderType());
-        holder.refreshIndex.setEnabled(true);
+        // A scan belongs to the index, not to this ViewHolder. Rebind the shared
+        // progress state whenever Settings/Manage Indexes is recreated.
+        bindProgress(holder, t);
 
         holder.refreshIndex.setOnClickListener(view -> {
             Context context = holder.itemView.getContext();
