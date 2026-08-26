@@ -26,6 +26,13 @@ public class IndexUtils {
         return SCAN_PROGRESS.get(indexId);
     }
 
+    public static boolean isAnyScanRunning() {
+        for (GdiJsIndexClient.Progress progress : SCAN_PROGRESS.values()) {
+            if (progress != null && !progress.finished) return true;
+        }
+        return false;
+    }
+
     private static void publishProgress(int indexId, GdiJsIndexClient.ProgressListener listener,
                                         GdiJsIndexClient.Progress progress) {
         SCAN_PROGRESS.put(indexId, progress);

@@ -1,6 +1,8 @@
 package com.miracle.kglaynyi.fragments;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,6 +19,7 @@ import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.MyMedia;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
 import com.miracle.kglaynyi.utils.MediaClassificationUtils;
+import com.miracle.kglaynyi.utils.IndexUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +27,17 @@ import java.util.List;
 public class TvShowsLibraryFragment extends BaseFragment {
     private RecyclerView recyclerViewTVShows;
     private List<TVShow> tvShowList = new ArrayList<>();
+
+    private final Handler libraryRefreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable libraryRefreshRunnable = new Runnable() {
+        @Override public void run() {
+            if (!isAdded() || getView() == null) return;
+            showLibraryTVShows();
+            if (IndexUtils.isAnyScanRunning()) {
+                libraryRefreshHandler.postDelayed(this, 1200);
+            }
+        }
+    };
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -39,7 +53,14 @@ public class TvShowsLibraryFragment extends BaseFragment {
     @Override
     public void onResume() {
         super.onResume();
-        if (getView() != null) showLibraryTVShows();
+        libraryRefreshHandler.removeCallbacks(libraryRefreshRunnable);
+        libraryRefreshHandler.post(libraryRefreshRunnable);
+    }
+
+    @Override
+    public void onPause() {
+        libraryRefreshHandler.removeCallbacks(libraryRefreshRunnable);
+        super.onPause();
     }
 
     private void showLibraryTVShows() {
