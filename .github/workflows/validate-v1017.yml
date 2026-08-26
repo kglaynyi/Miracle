@@ -50,8 +50,7 @@ jobs:
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/release-apk.yml \
-            app/build.gradle \
+          git add app/build.gradle \
             app/src/main/java/com/miracle/kglaynyi/fragments/MovieLibraryFragment.java \
             app/src/main/java/com/miracle/kglaynyi/fragments/TvShowsLibraryFragment.java \
             app/src/main/java/com/miracle/kglaynyi/fragments/AnimeLibraryFragment.java \
