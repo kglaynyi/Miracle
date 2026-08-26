@@ -19,6 +19,11 @@ import java.util.List;
 public class IndexUtils {
 
     public static boolean refreshIndex(Context mContext, IndexLink indexLink) {
+        return refreshIndex(mContext, indexLink, null);
+    }
+
+    public static boolean refreshIndex(Context mContext, IndexLink indexLink,
+                                       GdiJsIndexClient.ProgressListener listener) {
         Thread thread = new Thread(() -> {
             try {
                 String folderType = indexLink.getFolderType();
@@ -35,15 +40,21 @@ public class IndexUtils {
                     saved = DatabaseClient.getInstance(mContext)
                             .getAppDatabase().indexLinksDao().find(link);
                 }
-                if (saved == null) return;
+                if (saved == null) {
+                    notifyProgress(listener, GdiJsIndexClient.Progress.failed("Could not find saved index"));
+                    return;
+                }
 
                 int id = saved.getId();
                 boolean tvShows = "TVShows".equals(folderType);
 
                 if ("GDI-JS".equals(indexType)) {
-                    GdiJsIndexClient.scan(link, user, pass, tvShows, id);
+                    GdiJsIndexClient.scan(link, user, pass, tvShows, id, listener);
                     return;
                 }
+
+                notifyProgress(listener, GdiJsIndexClient.Progress.status(
+                        "Refreshing index…", -1, 0, 0, 0, 0, 0, 0));
 
                 resetPagingState();
                 if ("GDIndex".equals(indexType)) {
@@ -55,12 +66,27 @@ public class IndexUtils {
                 } else if ("SimpleProgram".equals(indexType)) {
                     postRequestSimpleProgramIndex(link, user, pass, tvShows, id);
                 }
+
+                int count = getNoOfMedia(mContext, saved);
+                notifyProgress(listener, GdiJsIndexClient.Progress.done(
+                        "Refresh complete • " + count + " items", count, 0, count));
             } catch (Exception e) {
+                String message = e.getMessage();
+                if (message == null || message.trim().isEmpty()) {
+                    message = e.getClass().getSimpleName();
+                }
+                notifyProgress(listener, GdiJsIndexClient.Progress.failed(
+                        "Refresh failed • " + message));
                 System.out.println("Index refresh failed: " + e);
             }
         });
         thread.start();
         return thread.isAlive();
+    }
+
+    private static void notifyProgress(GdiJsIndexClient.ProgressListener listener,
+                                       GdiJsIndexClient.Progress progress) {
+        if (listener != null) listener.onProgress(progress);
     }
 
     public static boolean deleteIndex(Context mContext, IndexLink indexLink) {
@@ -126,17 +152,15 @@ public class IndexUtils {
         return thread.isAlive();
     }
 
-    static int noOfMedia = 0;
-
     public static int getNoOfMedia(Context mContext, IndexLink t) {
+        final int[] result = new int[]{0};
         Thread thread = new Thread(() -> {
-            noOfMedia = 0;
             if (t.getFolderType() != null && t.getFolderType().equals("Movies")) {
-                noOfMedia = DatabaseClient.getInstance(mContext)
+                result[0] = DatabaseClient.getInstance(mContext)
                         .getAppDatabase().movieDao().getNoOfMovies(t.getId());
             }
             if (t.getFolderType() != null && t.getFolderType().equals("TVShows")) {
-                noOfMedia = DatabaseClient.getInstance(mContext)
+                result[0] = DatabaseClient.getInstance(mContext)
                         .getAppDatabase().episodeDao().getNoOfShows(t.getId());
             }
         });
@@ -146,7 +170,7 @@ public class IndexUtils {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        return noOfMedia;
+        return result[0];
     }
 
     public static void disableIndex(Context mContext, IndexLink indexLink) {
