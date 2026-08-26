@@ -1,11 +1,10 @@
-name: Validate Miracle v1.0.17 live library
+name: Publish Miracle v1.0.17 APK
 
 on:
   push:
     branches:
       - fix-v1017-live-library
     paths:
-      - '.github/fix_v1017.py'
       - '.github/workflows/validate-v1017.yml'
   workflow_dispatch:
 
@@ -13,14 +12,15 @@ permissions:
   contents: write
 
 jobs:
-  validate:
+  release:
     runs-on: ubuntu-latest
     env:
       TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
     steps:
-      - name: Checkout fix branch
+      - name: Checkout validated main
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Set up Java 11
@@ -37,35 +37,42 @@ jobs:
             exit 1
           fi
 
-      - name: Apply v1.0.17 fixes
-        run: python3 .github/fix_v1017.py
+      - name: Prepare stable test signing directory
+        run: mkdir -p ~/.android
 
-      - name: Build and validate APK
+      - name: Restore stable test signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: miracle-debug-signing-key-v1
+
+      - name: Build installable APK from main
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Commit validated source changes
-        id: commit
+      - name: Verify and prepare v1.0.17 APK
         shell: bash
         run: |
           set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/build.gradle \
-            app/src/main/java/com/miracle/kglaynyi/fragments/MovieLibraryFragment.java \
-            app/src/main/java/com/miracle/kglaynyi/fragments/TvShowsLibraryFragment.java \
-            app/src/main/java/com/miracle/kglaynyi/fragments/AnimeLibraryFragment.java \
-            app/src/main/java/com/miracle/kglaynyi/utils/IndexUtils.java \
-            app/src/main/java/com/miracle/kglaynyi/utils/GdiJsIndexClient.java
-          git commit -m "Keep library visible and refresh it during scans"
-          echo "validated_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          git push origin HEAD:fix-v1017-live-library
+          VERSION_NAME=$(sed -n 's/.*versionName "\([^"]*\)".*/\1/p' app/build.gradle | head -1)
+          if [[ "$VERSION_NAME" != "1.0.17" ]]; then
+            echo "::error::Expected main version 1.0.17, got $VERSION_NAME"
+            exit 1
+          fi
+          cp app/build/outputs/apk/debug/app-debug.apk Miracle-v1.0.17.apk
+          test -s Miracle-v1.0.17.apk
 
-      - name: Publish validated commit to main
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -e
-          VALIDATED_SHA="${{ steps.commit.outputs.validated_sha }}"
-          git fetch origin main
-          git checkout -B publish-v1017 origin/main
-          git cherry-pick "$VALIDATED_SHA"
-          git push origin HEAD:main
+          NOTES="Keeps the library visible during discovery and refreshes Movies, TV Shows, and Anime automatically while scan metadata is rebuilt."
+          if gh release view v1.0.17 >/dev/null 2>&1; then
+            gh release upload v1.0.17 Miracle-v1.0.17.apk --clobber
+          else
+            gh release create v1.0.17 Miracle-v1.0.17.apk \
+              --target main \
+              --title "Miracle v1.0.17" \
+              --notes "$NOTES"
+          fi
