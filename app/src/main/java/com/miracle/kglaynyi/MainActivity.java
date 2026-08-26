@@ -7,6 +7,7 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
@@ -33,8 +34,9 @@ import java.util.concurrent.TimeUnit;
 import eightbitlab.com.blurview.BlurView;
 import eightbitlab.com.blurview.RenderScriptBlur;
 
-
 public class MainActivity extends AppCompatActivity {
+
+    private static final String TAG = "MainActivity";
 
     BottomNavigationView bottomNavigationView;
     HomeFragment homeFragment = new HomeFragment();
@@ -56,40 +58,23 @@ public class MainActivity extends AppCompatActivity {
         context = getApplicationContext();
 
         initWidgets();
-
         setUpBottomNavigationView();
 
-        getSupportFragmentManager().beginTransaction().replace(R.id.container , homeFragment).commit();
+        getSupportFragmentManager().beginTransaction().replace(R.id.container, homeFragment).commit();
 
         checkForUpdates(this);
 
-        AppDatabase db = Room.databaseBuilder(getApplicationContext() ,
-                        AppDatabase.class , "MyToDos")
-//                .fallbackToDestructiveMigration()
+        AppDatabase db = Room.databaseBuilder(getApplicationContext(),
+                        AppDatabase.class, "MyToDos")
                 .build();
 
-
-        //refresh index if set
         SharedPreferences sharedPreferences = getSharedPreferences("Settings", Context.MODE_PRIVATE);
         boolean savedREF = sharedPreferences.getBoolean("REFRESH_SETTING", false);
         int savedTime = sharedPreferences.getInt("REFRESH_TIME", 0);
-        if(savedREF){
-            scheduleWork(savedTime,0);
-//            WorkManager.getInstance(context).cancelAllWork();
-//            OneTimeWorkRequest impWork = new OneTimeWorkRequest.Builder(RefreshWorker.class)
-//                    .setInitialDelay(8,TimeUnit.HOURS)
-//                    .build();
-//            PeriodicWorkRequest periodicWork = new PeriodicWorkRequest.Builder(RefreshWorker.class, 24, TimeUnit.HOURS)
-//                    .setInitialDelay(24,TimeUnit.HOURS)
-//                    .build();
-//            WorkManager.getInstance(this).enqueue(impWork);
+        if (savedREF) {
+            scheduleWork(savedTime, 0);
         }
-
-
-
-
     }
-
 
     @Override
     public void onBackPressed() {
@@ -108,71 +93,82 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setUpBottomNavigationView() {
+        if (bottomNavigationView == null) {
+            Log.w(TAG, "Bottom navigation view is missing from layout");
+            return;
+        }
+
         bottomNavigationView.setOnItemSelectedListener(item -> {
-            if(item.getItemId()==R.id.homeFragment){
+            if (item.getItemId() == R.id.homeFragment) {
                 getSupportFragmentManager()
                         .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right,R.anim.to_left,R.anim.from_left,R.anim.to_right)
-                        .replace(R.id.container , homeFragment)
+                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+                        .replace(R.id.container, homeFragment)
                         .commit();
                 return true;
-            }else if(item.getItemId()==R.id.searchFragment){
+            } else if (item.getItemId() == R.id.searchFragment) {
                 getSupportFragmentManager()
                         .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right,R.anim.to_left,R.anim.from_left,R.anim.to_right)
-                        .replace(R.id.container , searchFragment)
+                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+                        .replace(R.id.container, searchFragment)
                         .commit();
                 return true;
-            }else if(item.getItemId()==R.id.libraryFragment){
+            } else if (item.getItemId() == R.id.libraryFragment) {
                 getSupportFragmentManager()
                         .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right,R.anim.to_left,R.anim.from_left,R.anim.to_right)
-                        .replace(R.id.container , libraryFragment)
+                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+                        .replace(R.id.container, libraryFragment)
                         .commit();
                 return true;
-            }else if(item.getItemId()==R.id.settingsFragment){
+            } else if (item.getItemId() == R.id.settingsFragment) {
                 getSupportFragmentManager()
                         .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right,R.anim.to_left,R.anim.from_left,R.anim.to_right)
-                        .replace(R.id.container , settingsFragment)
+                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+                        .replace(R.id.container, settingsFragment)
                         .commit();
                 return true;
             }
             return false;
         });
-
     }
 
     private void blurBottom() {
+        if (blurView == null || rootView == null) {
+            Log.w(TAG, "Blur view unavailable; continuing without blur");
+            return;
+        }
 
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS , WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-        getWindow().setStatusBarColor(Color.TRANSPARENT);
-        final float radius = 12f;
-        final Drawable windowBackground = getWindow().getDecorView().getBackground();
+        try {
+            getWindow().setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+            getWindow().setStatusBarColor(Color.TRANSPARENT);
+            final float radius = 12f;
+            final Drawable windowBackground = getWindow().getDecorView().getBackground();
 
-        blurView.setupWith(rootView , new RenderScriptBlur(this))
-                .setFrameClearDrawable(windowBackground)
-                .setBlurRadius(radius);
-        blurView.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
-        blurView.setClipToOutline(true);
-
-
+            blurView.setupWith(rootView, new RenderScriptBlur(this))
+                    .setFrameClearDrawable(windowBackground)
+                    .setBlurRadius(radius);
+            blurView.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+            blurView.setClipToOutline(true);
+        } catch (Throwable t) {
+            Log.w(TAG, "Blur is not supported on this device; disabling it", t);
+            blurView.setVisibility(View.GONE);
+        }
     }
 
     private void scheduleWork(int hour, int minute) {
         Calendar calendar = Calendar.getInstance();
         long nowMillis = calendar.getTimeInMillis();
 
-        if(calendar.get(Calendar.HOUR_OF_DAY) > hour ||
-                (calendar.get(Calendar.HOUR_OF_DAY) == hour && calendar.get(Calendar.MINUTE)+1 >= minute)) {
+        if (calendar.get(Calendar.HOUR_OF_DAY) > hour ||
+                (calendar.get(Calendar.HOUR_OF_DAY) == hour && calendar.get(Calendar.MINUTE) + 1 >= minute)) {
             calendar.add(Calendar.DAY_OF_MONTH, 1);
         }
 
-        calendar.set(Calendar.HOUR_OF_DAY,hour);
-        calendar.set(Calendar.MINUTE,minute);
-
-        calendar.set(Calendar.SECOND,0);
-        calendar.set(Calendar.MILLISECOND,0);
+        calendar.set(Calendar.HOUR_OF_DAY, hour);
+        calendar.set(Calendar.MINUTE, minute);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
         long diff = calendar.getTimeInMillis() - nowMillis;
 
         WorkManager mWorkManager = WorkManager.getInstance(context);
@@ -182,15 +178,8 @@ public class MainActivity extends AppCompatActivity {
         mWorkManager.cancelAllWork();
         OneTimeWorkRequest mRequest = new OneTimeWorkRequest.Builder(RefreshWorker.class)
                 .setConstraints(constraints)
-                .setInitialDelay(diff,TimeUnit.MILLISECONDS)
+                .setInitialDelay(diff, TimeUnit.MILLISECONDS)
                 .build();
         mWorkManager.enqueue(mRequest);
-
     }
-
 }
-
-
-
-
-
