@@ -1,3 +1,7 @@
+# Miracle
+
+> **Credit:** Miracle is based on [Thunder](https://github.com/anujd64/Thunder) by **anujd64** and remains licensed under the GNU GPL v3. See [ATTRIBUTION.md](ATTRIBUTION.md).
+
 ### **⚡ Thunder** :
 
 An Android app to stream and download your media stored in Google Drive in an Awesome way !!
