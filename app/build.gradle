@@ -2,6 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
+def tmdbApiKey = System.getenv("TMDB_API_KEY") ?: ""
+
 android {
     namespace "com.miracle.kglaynyi"
     compileSdk 32
@@ -10,8 +12,10 @@ android {
         applicationId "com.miracle.kglaynyi"
         minSdk 21
         targetSdk 32
-        versionCode 6
-        versionName "1.0.12"
+        versionCode 7
+        versionName "1.0.13"
+
+        buildConfigField "String", "TMDB_API_KEY", "\"${tmdbApiKey}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         javaCompileOptions {
