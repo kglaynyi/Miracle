@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@color/black"
+    tools:context="com.theflexproject.thunder.fragments.SearchFragment">
+
+    <TextView
+        android:id="@+id/searchTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="40dp"
+        android:fontFamily="@font/jost_medium"
+        android:text="Search"
+        android:textColor="@color/white"
+        android:textSize="25sp" />
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/searchContainer"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginTop="20dp"
+        android:layout_below="@id/searchTitle"
+        android:layout_alignParentStart="true"
+        android:layout_gravity="center"
+        android:layout_marginHorizontal="20dp"
+        android:textCursorDrawable="@null"
+        android:gravity="center_vertical"
+        app:hintEnabled="false"
+        android:textColorHint="#50FFFFFF"
+        app:hintAnimationEnabled="false"
+        app:startIconDrawable="@drawable/ic_search"
+        app:startIconTint="@color/white">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/search_input"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:focusable="true"
+            android:clickable="true"
+            android:background="@drawable/search_bg"
+            android:fontFamily="@font/jost_regular"
+            android:hint="@string/search_for_a_movie_or_a_show"
+            android:gravity="start|center_vertical"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:paddingTop="12dp"
+            android:textColorHint="@color/white"
+
+            />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclersearch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/searchContainer"
+            android:scrollbars="vertical"
+            android:layout_marginTop="20dp"
+            tools:listitem="@layout/movie_item_recycler" />
+
+<!--    <ScrollView-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:id="@+id/scrollview2"-->
+<!--        android:layout_marginTop="110dp"-->
+<!--        android:paddingBottom="90dp">-->
+
+<!--        <androidx.recyclerview.widget.RecyclerView-->
+<!--            android:id="@+id/recyclerGenres"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:scrollbars="vertical"-->
+<!--            tools:listitem="@layout/genreforsearch"/>-->
+<!--    </ScrollView>-->
+
+
+
+</RelativeLayout>

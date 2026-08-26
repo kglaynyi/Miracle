@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/movieCard"
+    android:layout_width="100dp"
+    android:layout_height="wrap_content"
+    android:layout_margin="10dp"
+    android:focusable="true"
+    app:cardBackgroundColor="@color/media_item_bg_color"
+    app:cardCornerRadius="12sp">
+
+    <RelativeLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/posterInMediaItem"
+            android:layout_width="100dp"
+            android:layout_height="150dp"
+            android:layout_centerHorizontal="true"
+            android:scaleType="centerCrop"
+            app:srcCompat="@color/transparent" />
+
+        <TextView
+            android:id="@+id/nameInMediaItem"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/posterInMediaItem"
+            android:layout_alignStart="@+id/posterInMediaItem"
+            android:layout_alignEnd="@+id/posterInMediaItem"
+            android:layout_marginTop="5dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/jost_regular"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingHorizontal="5dp"
+            android:scrollHorizontally="true"
+            android:text="TextView"
+            android:textAlignment="center"
+            android:textColor="@color/white"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/yearInMediaItem"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/nameInMediaItem"
+            android:layout_centerHorizontal="true"
+            android:fontFamily="@font/jost_light"
+            android:text="TextView"
+            android:textSize="12sp"
+            android:textAlignment="center"
+            android:textColor="#cccccc"
+            android:visibility="gone" />
+    </RelativeLayout>
+
+
+</androidx.cardview.widget.CardView>

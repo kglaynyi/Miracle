@@ -1,0 +1,401 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/black">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <ImageView
+            android:id="@+id/movieBackdrop"
+            android:layout_width="match_parent"
+            android:layout_height="450dp"
+            android:scaleType="centerCrop"
+            tools:src="@color/transparent" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="460dp"
+            android:orientation="vertical">
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="0.3"
+                android:background="@drawable/gradient_top_bottom_bg" />
+        </LinearLayout>
+
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="500dp"
+            android:orientation="vertical">
+
+            <eightbitlab.com.blurview.BlurView
+                android:id="@+id/blurView4"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#00000000"
+                android:clipChildren="false"
+                android:elevation="8dp"
+                android:fadingEdge="vertical"
+                android:fadingEdgeLength="240dp"
+                android:requiresFadingEdge="vertical">
+
+
+            </eightbitlab.com.blurview.BlurView>
+
+
+        </RelativeLayout>
+    </RelativeLayout>
+
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="20dp">
+
+
+        <ImageView
+            android:id="@+id/moviePosterInDetails"
+            android:layout_width="133dp"
+            android:layout_height="200dp"
+            android:layout_marginTop="150dp"
+            android:scaleType="centerCrop"
+            android:src="@color/transparent" />
+
+
+        <ImageView
+            android:id="@+id/movieLogo"
+            android:layout_width="100dp"
+            android:layout_height="70dp"
+            android:layout_margin="15dp"
+            android:layout_above="@+id/labels"
+            android:layout_alignParentEnd="true"
+            android:layout_toEndOf="@+id/moviePosterInDetails"
+            android:scaleType="fitCenter"
+            android:src="@color/transparent"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/title_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@+id/labels"
+            android:layout_alignParentEnd="true"
+            android:layout_toEndOf="@+id/moviePosterInDetails"
+            android:fontFamily="@font/jost_medium"
+            android:gravity="center"
+            android:paddingHorizontal="10dp"
+            android:textColor="@color/white"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="Movie Title" />
+
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/labels"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/play"
+            android:layout_toEndOf="@id/moviePosterInDetails">
+
+
+            <TextView
+                android:id="@+id/year_text"
+                style="@style/sizelabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerHorizontal="true"
+                android:fontFamily="@font/jost_medium"
+                android:gravity="center_horizontal"
+                android:textColor="#CCCCCC"
+                android:textSize="10sp"
+                android:visibility="gone"
+                app:layout_constraintBottom_toTopOf="@id/ratings"
+                app:layout_constraintEnd_toStartOf="@+id/RuntimeText"
+                app:layout_constraintHorizontal_bias="0.5"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="2099" />
+
+                <TextView
+                    android:id="@+id/RuntimeText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    style="@style/sizelabel"
+                    android:textColor="#CCCCCC"
+                    android:visibility="gone"
+                    android:fontFamily="@font/jost_medium"
+                    android:gravity="center_horizontal"
+                    app:layout_constraintBottom_toTopOf="@id/ratings"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    android:textSize="10sp"
+                    app:layout_constraintHorizontal_bias="0.5"
+                    app:layout_constraintStart_toEndOf="@+id/year_text"
+                    app:layout_constraintTop_toTopOf="parent"
+                    android:text="1h 30m" />
+
+            <ImageView
+                android:id="@+id/ratings"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:src="@drawable/tmdb"
+                android:visibility="gone"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintHorizontal_bias="0.5"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <TextView
+                android:id="@+id/ratingsText"
+                style="@style/sizelabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_toEndOf="@+id/year_text"
+                android:fontFamily="@font/jost_medium"
+                android:gravity="center_horizontal"
+                android:textColor="#CCCCCC"
+                android:textSize="13sp"
+                android:visibility="gone"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintHorizontal_bias="0.5"
+                app:layout_constraintStart_toEndOf="@+id/ratings"
+                tools:text="86 %" />
+
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/play"
+            style="@style/Widget.MaterialComponents.Button.Icon"
+            android:layout_width="133dp"
+            android:layout_height="48dp"
+            android:layout_below="@id/moviePosterInDetails"
+            android:layout_marginTop="15dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="@font/jost_regular"
+            android:orientation="horizontal"
+            android:padding="10dp"
+            android:text="@string/play"
+            android:textColor="@color/white"
+            app:backgroundTint="#111111"
+            app:icon="@drawable/ic_play"
+            app:iconGravity="textStart"
+            app:iconTint="@color/download_button_bg_color" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/download"
+            style="@style/Widget.AppCompat.Button.Borderless.Colored"
+            android:layout_width="50dp"
+            android:layout_height="48dp"
+            android:layout_below="@id/labels"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="15dp"
+            android:layout_toEndOf="@id/play"
+            android:clickable="true"
+            android:focusable="true"
+            android:orientation="horizontal"
+            app:icon="@drawable/ic_download"
+            app:iconGravity="textStart"
+            app:iconTint="@color/download_button_bg_color" />
+
+<!--        <com.google.android.material.button.MaterialButton-->
+<!--            android:id="@+id/changeTMDBId"-->
+<!--            style="@style/Widget.AppCompat.Button.Borderless.Colored"-->
+<!--            android:layout_width="50dp"-->
+<!--            android:layout_height="48dp"-->
+<!--            android:layout_below="@id/labels"-->
+<!--            android:layout_alignParentEnd="true"-->
+<!--            android:layout_marginTop="15dp"-->
+<!--            android:clickable="true"-->
+<!--            android:focusable="true"-->
+<!--            android:orientation="horizontal"-->
+<!--            app:icon="@drawable/ic_change"-->
+<!--            app:iconGravity="textStart"-->
+<!--            app:iconTint="#626161" />-->
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_below="@id/play">
+            <TextView
+                android:id="@+id/overviewtext"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/jost_medium"
+                android:text="@string/overview"
+                android:textColor="@color/white"
+                android:textSize="18sp">
+
+            </TextView>
+            <TextView
+                android:id="@+id/overviewdesc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textColor="@color/white"
+                android:fontFamily="@font/jost_regular"
+                android:textSize="14sp"
+                tools:text="Basically the whole plot of movie" />
+
+            <TableLayout
+                android:id="@+id/detailsTable"
+                android:layout_marginTop="15dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+                <TableRow
+                    android:id="@+id/Director"
+                    android:padding="5dp"
+                    android:visibility="gone">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight=".4"
+                        android:fontFamily="@font/jost_regular"
+                        android:textColor="@color/white"
+                        android:textSize="14sp"
+                        android:text="Director :" />
+
+                    <TextView
+                        android:id="@+id/DirectorText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight=".6"
+                        android:fontFamily="@font/jost_regular"
+                        android:textColor="@color/white"
+                        android:textSize="14sp" />
+
+                </TableRow>
+                <TableRow android:visibility="gone"
+                    android:id="@+id/WrittenBy"
+                    android:padding="5dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight=".4"
+                        android:textColor="@color/white"
+                        android:fontFamily="@font/jost_regular"
+                        android:textSize="14sp"
+                        android:text="Written By :" />
+                    <TextView
+                        android:id="@+id/WrittenByText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight=".6"
+
+                        android:fontFamily="@font/jost_regular"
+                        android:textColor="@color/white"
+                        android:textSize="14sp" />
+
+
+                </TableRow>
+                <TableRow android:id="@+id/Genres" android:visibility="gone"
+                    android:padding="5dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight=".4"
+                        android:textColor="@color/white"
+                        android:fontFamily="@font/jost_regular"
+                        android:textSize="14sp"
+                        android:text="Genres :" />
+                    <TextView
+                        android:id="@+id/GenresText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight=".6"
+                        android:fontFamily="@font/jost_regular"
+                        android:textColor="@color/white"
+                        android:textSize="14sp" />
+
+                </TableRow>
+
+<!--                <TableRow-->
+<!--                    android:padding="5dp">-->
+<!--                    <TextView-->
+<!--                    android:id="@+id/Budget"-->
+<!--                    android:layout_width="wrap_content"-->
+<!--                    android:layout_height="wrap_content"-->
+<!--                    android:layout_below="@id/videoQualityText"-->
+<!--                    android:fontFamily="@font/jost_regular"-->
+<!--                    android:textColor="@color/white"-->
+<!--                    android:textSize="14sp"-->
+<!--                    tools:text="Budget :" />-->
+<!--                    <TextView-->
+<!--                        android:id="@+id/BudgetText"-->
+<!--                        android:layout_width="wrap_content"-->
+<!--                        android:layout_height="wrap_content"-->
+<!--                        android:layout_below="@id/videoQualityText"-->
+<!--                        android:layout_toEndOf="@id/Budget"-->
+<!--                        android:fontFamily="@font/jost_regular"-->
+<!--                        android:textColor="@color/white"-->
+<!--                        android:textSize="14sp"-->
+<!--                        tools:text="THE DIRECTOR" />-->
+<!--                </TableRow>-->
+<!--                <TableRow-->
+<!--                    android:padding="5dp">-->
+<!--                    <TextView-->
+<!--                        android:id="@+id/Revenue"-->
+<!--                        android:layout_width="wrap_content"-->
+<!--                        android:layout_height="wrap_content"-->
+<!--                        android:layout_below="@id/Budget"-->
+<!--                        android:fontFamily="@font/jost_regular"-->
+<!--                        android:textColor="@color/white"-->
+<!--                        android:textSize="14sp"-->
+<!--                        tools:text="Revenue :" />-->
+
+<!--                    <TextView-->
+<!--                        android:id="@+id/RevenueText"-->
+<!--                        android:layout_width="wrap_content"-->
+<!--                        android:layout_height="wrap_content"-->
+<!--                        android:layout_below="@id/Budget"-->
+<!--                        android:layout_toEndOf="@id/Revenue"-->
+<!--                        android:fontFamily="@font/jost_regular"-->
+<!--                        android:textColor="@color/white"-->
+<!--                        android:textSize="14sp"-->
+<!--                        tools:text="THE DIRECTOR" />-->
+<!--                </TableRow>-->
+
+            </TableLayout>
+
+            <TextView
+                android:id="@+id/linktitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:textSize="18sp"
+                android:fontFamily="@font/jost_medium"
+                android:text="Available Files"
+                android:textColor="@color/white"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerAvailableMovieFiles"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:paddingBottom="85dp"
+                android:nestedScrollingEnabled="false"
+                tools:itemCount="5"
+                tools:listitem="@layout/file_item"/>
+
+        </LinearLayout>
+
+    </RelativeLayout>
+    </androidx.core.widget.NestedScrollView>
+</RelativeLayout>

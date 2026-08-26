@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/fileItemCard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="10dp"
+    app:cardBackgroundColor="@color/episode_item_bg_color"
+    app:cardCornerRadius="15dp">
+
+    <eightbitlab.com.blurview.BlurView
+
+        android:id="@+id/blurView2"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_alignParentBottom="true"
+        android:background="@color/transparent"
+        android:clipChildren="false"
+        android:elevation="8dp">
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="5dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/playInFileItem"
+                style="@style/Widget.AppCompat.Button.Borderless.Colored"
+                android:layout_width="133dp"
+                android:layout_height="40dp"
+                android:layout_below="@id/sizeTextInFileItem"
+                android:layout_alignParentStart="true"
+                android:layout_marginStart="11dp"
+                android:layout_marginTop="1dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingHorizontal="5dp"
+                app:icon="@drawable/ic_play"
+                app:iconGravity="textStart"
+                app:iconSize="35sp"
+                app:iconTint="@color/download_button_bg_color" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/downloadInFileItem"
+                style="@style/Widget.AppCompat.Button.Borderless.Colored"
+                android:layout_width="133dp"
+                android:layout_height="40dp"
+                android:layout_below="@id/sizeTextInFileItem"
+                android:layout_alignParentEnd="true"
+                android:clickable="true"
+                android:focusable="true"
+                app:iconTint="@color/download_button_bg_color"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingHorizontal="5dp"
+                app:icon="@drawable/ic_download"
+                app:iconGravity="textStart"
+                app:iconSize="35sp" />
+
+            <TextView
+                android:id="@+id/sizeTextInFileItem"
+                style="@style/sizelabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/fileLinkInFileItem"
+                android:layout_alignParentStart="true"
+                android:fontFamily="@font/jost_medium"
+                android:paddingHorizontal="20dp"
+                android:textColor="#CCCCCC"
+                android:textSize="15sp"
+                android:visibility="visible" />
+
+            <TextView
+                android:id="@+id/videoQualityTextInFileItem"
+                style="@style/sizelabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/fileLinkInFileItem"
+                android:layout_toEndOf="@id/sizeTextInFileItem"
+                android:fontFamily="@font/jost_medium"
+                android:paddingHorizontal="20dp"
+                android:textColor="#CCCCCC"
+                android:textSize="15sp"
+                android:visibility="visible" />
+
+            <TextView
+                android:id="@+id/fileNameInFileItem"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/changeTMDBIdInFileItem"
+                android:fontFamily="@font/jost_regular"
+                android:gravity="start"
+                android:padding="10dp"
+                android:text="FileName"
+                android:textColor="@color/white"
+                android:textSize="15sp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/changeTMDBIdInFileItem"
+                style="@style/Widget.AppCompat.Button.Borderless.Colored"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:layout_above="@id/fileLinkInFileItem"
+                android:layout_alignParentEnd="true"
+                android:clickable="true"
+                android:focusable="true"
+                android:orientation="horizontal"
+                app:icon="@drawable/ic_change"
+                app:iconGravity="textStart"
+                app:iconTint="@color/download_button_bg_color" />
+
+            <TextView
+                android:id="@+id/fileLinkInFileItem"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/fileNameInFileItem"
+                android:fontFamily="@font/jost_regular"
+                android:gravity="start"
+                android:padding="10dp"
+                android:textColor="@color/white"
+                android:textSize="13sp" />
+
+        </RelativeLayout>
+
+    </eightbitlab.com.blurview.BlurView>
+
+
+
+</com.google.android.material.card.MaterialCardView>
