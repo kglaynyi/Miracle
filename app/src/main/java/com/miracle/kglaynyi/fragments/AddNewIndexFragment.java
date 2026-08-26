@@ -24,6 +24,7 @@ import androidx.annotation.Nullable;
 import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.IndexLink;
+import com.miracle.kglaynyi.utils.GdiJsIndexClient;
 import com.miracle.kglaynyi.utils.IndexConnectionValidator;
 
 public class AddNewIndexFragment extends BaseFragment {
@@ -70,7 +71,7 @@ public class AddNewIndexFragment extends BaseFragment {
         String link = indexLinkView.getText().toString().trim();
         String user = userNameView.getText().toString();
         String pass = passWordView.getText().toString();
-        String indexType = indexTypeView.getText().toString().trim();
+        String selectedIndexType = indexTypeView.getText().toString().trim();
         String folderType = folderTypeView.getText().toString().trim();
 
         if (link.isEmpty()) {
@@ -81,7 +82,7 @@ public class AddNewIndexFragment extends BaseFragment {
             indexLinkView.setError("URL must start with http:// or https://");
             return;
         }
-        if (indexType.isEmpty()) {
+        if (selectedIndexType.isEmpty()) {
             indexTypeView.setError("Select index type");
             return;
         }
@@ -94,12 +95,15 @@ public class AddNewIndexFragment extends BaseFragment {
 
         new Thread(() -> {
             IndexConnectionValidator.ValidationResult validation =
-                    IndexConnectionValidator.validate(link, user, pass, indexType);
+                    IndexConnectionValidator.validate(link, user, pass, selectedIndexType);
 
             if (!validation.success) {
                 mActivity.runOnUiThread(() -> setBusy(false, validation.message));
                 return;
             }
+
+            final String effectiveIndexType = validation.resolvedIndexType == null
+                    ? selectedIndexType : validation.resolvedIndexType;
 
             try {
                 if (DatabaseClient.getInstance(mActivity).getAppDatabase().indexLinksDao().find(link) != null) {
@@ -112,7 +116,7 @@ public class AddNewIndexFragment extends BaseFragment {
                 indexLink.setLink(link);
                 indexLink.setUsername(user);
                 indexLink.setPassword(pass);
-                indexLink.setIndexType(indexType);
+                indexLink.setIndexType(effectiveIndexType);
                 indexLink.setFolderType(folderType);
 
                 DatabaseClient.getInstance(mActivity).getAppDatabase().indexLinksDao().insert(indexLink);
@@ -122,23 +126,34 @@ public class AddNewIndexFragment extends BaseFragment {
                     return;
                 }
 
-                mActivity.runOnUiThread(() -> setBusy(true, "Index verified. Scanning videos…"));
+                mActivity.runOnUiThread(() -> {
+                    indexTypeView.setText(effectiveIndexType, false);
+                    String message = "GDI-JS".equals(effectiveIndexType)
+                            ? "GDI-JS login verified. Scanning videos…"
+                            : "Index verified. Scanning videos…";
+                    setBusy(true, message);
+                });
 
-                resetPagingState();
                 boolean tvShows = "TVShows".equals(folderType);
                 int indexId = saved.getId();
+                int found;
 
-                if ("GDIndex".equals(indexType)) {
-                    postRequestGDIndex(link, user, pass, tvShows, indexId);
-                } else if ("GoIndex".equals(indexType)) {
-                    postRequestGoIndex(link, user, pass, tvShows, indexId);
-                } else if ("MapleIndex".equals(indexType) || "Maple".equals(indexType)) {
-                    postRequestMapleIndex(link, user, pass, tvShows, indexId);
-                } else if ("SimpleProgram".equals(indexType)) {
-                    postRequestSimpleProgramIndex(link, user, pass, tvShows, indexId);
+                if ("GDI-JS".equals(effectiveIndexType)) {
+                    found = GdiJsIndexClient.scan(link, user, pass, tvShows, indexId);
+                } else {
+                    resetPagingState();
+                    if ("GDIndex".equals(effectiveIndexType)) {
+                        postRequestGDIndex(link, user, pass, tvShows, indexId);
+                    } else if ("GoIndex".equals(effectiveIndexType)) {
+                        postRequestGoIndex(link, user, pass, tvShows, indexId);
+                    } else if ("MapleIndex".equals(effectiveIndexType) || "Maple".equals(effectiveIndexType)) {
+                        postRequestMapleIndex(link, user, pass, tvShows, indexId);
+                    } else if ("SimpleProgram".equals(effectiveIndexType)) {
+                        postRequestSimpleProgramIndex(link, user, pass, tvShows, indexId);
+                    }
+                    found = getScannedVideoCount();
                 }
 
-                int found = getScannedVideoCount();
                 String result = found > 0
                         ? "Done. Found " + found + " video" + (found == 1 ? "." : "s.")
                         : "Connected successfully, but no supported video files were found.";
