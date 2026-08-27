@@ -21,6 +21,7 @@ import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.WindowManager;
 import android.widget.ImageButton;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TableRow;
 import android.widget.TextView;
@@ -38,14 +39,20 @@ import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.Target;
 import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.adapter.FileItemAdapter;
+import com.miracle.kglaynyi.adapter.CastAdapter;
 import com.miracle.kglaynyi.adapter.ScaleCenterItemLayoutManager;
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.Genre;
+import com.miracle.kglaynyi.model.CreditPerson;
 import com.miracle.kglaynyi.model.Movie;
 import com.miracle.kglaynyi.model.MyMedia;
 import com.miracle.kglaynyi.player.PlayerActivity;
 import com.miracle.kglaynyi.utils.MovieQualityExtractor;
 import com.miracle.kglaynyi.utils.MediaSourceDeduplicator;
+import com.miracle.kglaynyi.utils.MediaDownloadUtils;
+import com.miracle.kglaynyi.utils.ResumeUtils;
+import com.miracle.kglaynyi.utils.TmdbCreditsClient;
+import com.miracle.kglaynyi.utils.sizetoReadablesize;
 import com.miracle.kglaynyi.utils.StringUtils;
 
 import java.util.ArrayList;
@@ -68,7 +75,7 @@ public class MovieDetailsFragment extends BaseFragment{
     TextView titleText;
     TextView yearText;
     TextView runtime;
-    ImageButton play;
+    Button play;
     ImageButton changeSource;
     ImageButton identifyMovie;
     ImageButton addToList;
@@ -99,6 +106,9 @@ public class MovieDetailsFragment extends BaseFragment{
 
 
     RecyclerView recyclerViewMovieFiles;
+    RecyclerView castRecyclerMovie;
+    TextView castTitleMovie;
+    TextView movieSourceSummary;
     List<Movie> movieFileList;
     FileItemAdapter fileAdapter;
     FileItemAdapter.OnItemClickListener listenerFileItem;
@@ -170,7 +180,10 @@ public class MovieDetailsFragment extends BaseFragment{
 
 
 
-        play = view.findViewById(R.id.play);
+        play = view.findViewById(R.id.heroPlayButton);
+        movieSourceSummary = view.findViewById(R.id.movieSourceSummary);
+        castRecyclerMovie = view.findViewById(R.id.castRecyclerMovie);
+        castTitleMovie = view.findViewById(R.id.castTitleMovie);
         download = view.findViewById(R.id.downloadButton);
         addToList = view.findViewById(R.id.addToListButton);
         changeSource = view.findViewById(R.id.changeSourceButton);
@@ -202,6 +215,7 @@ public class MovieDetailsFragment extends BaseFragment{
                    }
 
                    if(movieDetails!=null){
+                       if (movieId == 0) movieId = movieDetails.getId();
                        Log.i("insideLoadDetails",movieDetails.toString());
                        mActivity.runOnUiThread(new Runnable() {
                            @Override
@@ -425,6 +439,8 @@ public class MovieDetailsFragment extends BaseFragment{
                         String defaultUrl = largestFile != null && largestFile.getUrlString() != null
                                 ? largestFile.getUrlString() : movieDetails.getUrlString();
                         in.putExtra("url", defaultUrl);
+                        in.putExtra(PlayerActivity.EXTRA_RESUME_KEY, movieResumeKey());
+                        in.putExtra(PlayerActivity.EXTRA_MEDIA_GROUP_KEY, movieResumeKey());
                         attachQualitySources(in);
                         startActivity(in);
                         Toast.makeText(getContext(),"Play",Toast.LENGTH_LONG).show();
@@ -439,13 +455,12 @@ public class MovieDetailsFragment extends BaseFragment{
         download.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                DownloadManager manager = (DownloadManager) mActivity.getSystemService(DOWNLOAD_SERVICE);
-                Uri uri = Uri.parse(largestFile.getUrlString());
-                DownloadManager.Request request = new DownloadManager.Request(uri);
-                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-                        .setDescription("Downloading");
-                long reference = manager.enqueue(request);
-                Toast.makeText(getContext(),"Download Started",Toast.LENGTH_LONG).show();
+                Movie source = largestFile != null ? largestFile : movieDetails;
+                if (source == null) {
+                    Toast.makeText(getContext(), "Video source is still loading", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                MediaDownloadUtils.enqueue(mActivity, source.getUrlString(), source.getFileName());
             }
         });
 
@@ -618,6 +633,78 @@ public class MovieDetailsFragment extends BaseFragment{
     }
 
 
+    private String movieResumeKey() {
+        int id = movieDetails != null ? movieDetails.getId() : movieId;
+        if (id > 0) return "movie:" + id;
+        return "movie-file:" + String.valueOf(movieFileName).hashCode();
+    }
+
+    private void updateHeroSourceSummary() {
+        if (movieSourceSummary == null) return;
+        Movie source = largestFile;
+        if (source == null && movieFileList != null && !movieFileList.isEmpty()) {
+            source = movieFileList.get(0);
+            largestFile = source;
+        }
+        if (source == null) {
+            movieSourceSummary.setVisibility(View.GONE);
+            return;
+        }
+
+        String quality = MovieQualityExtractor.extractQualtiy(source.getFileName());
+        String sizeText = "";
+        try {
+            sizeText = sizetoReadablesize.humanReadableByteCountBin(Long.parseLong(source.getSize()));
+        } catch (Exception ignored) {}
+        StringBuilder summary = new StringBuilder();
+        if (quality != null && !quality.trim().isEmpty()) summary.append(quality);
+        if (!sizeText.isEmpty()) {
+            if (summary.length() > 0) summary.append("  •  ");
+            summary.append(sizeText);
+        }
+        if (movieFileList != null && movieFileList.size() > 1) {
+            if (summary.length() > 0) summary.append("  •  ");
+            summary.append(movieFileList.size()).append(" sources");
+        }
+        movieSourceSummary.setText(summary.toString());
+        movieSourceSummary.setVisibility(View.VISIBLE);
+
+        long saved = ResumeUtils.getPositionForMedia(
+                mActivity, movieResumeKey(), source.getUrlString());
+        if (saved >= 10_000L) {
+            play.setText("Resume • " + formatResumeTime(saved));
+        } else {
+            play.setText("Play");
+        }
+    }
+
+    private String formatResumeTime(long ms) {
+        long seconds = Math.max(0, ms / 1000L);
+        long hours = seconds / 3600L;
+        long minutes = (seconds % 3600L) / 60L;
+        long secs = seconds % 60L;
+        return hours > 0
+                ? String.format(Locale.US, "%d:%02d:%02d", hours, minutes, secs)
+                : String.format(Locale.US, "%02d:%02d", minutes, secs);
+    }
+
+    private void loadCastAndCrew() {
+        if (movieDetails == null || movieDetails.getId() <= 0
+                || castRecyclerMovie == null || castTitleMovie == null) return;
+        final int tmdbId = movieDetails.getId();
+        new Thread(() -> {
+            List<CreditPerson> credits = TmdbCreditsClient.fetch(false, tmdbId);
+            mActivity.runOnUiThread(() -> {
+                if (!isAdded() || credits == null || credits.isEmpty()) return;
+                castTitleMovie.setVisibility(View.VISIBLE);
+                castRecyclerMovie.setVisibility(View.VISIBLE);
+                castRecyclerMovie.setLayoutManager(
+                        new LinearLayoutManager(mActivity, RecyclerView.HORIZONTAL, false));
+                castRecyclerMovie.setAdapter(new CastAdapter(mActivity, credits));
+            });
+        }, "MiracleMovieCredits").start();
+    }
+
     private void loadMovieFilesRecycler() {
         setMyOnClickLiseners();
         Thread thread = new Thread(new Runnable() {
@@ -650,6 +737,8 @@ public class MovieDetailsFragment extends BaseFragment{
                         fileAdapter = new FileItemAdapter(getContext() , (List<MyMedia>)(List<?>) movieFileList);
                         recyclerViewMovieFiles.setAdapter(fileAdapter);
                         fileAdapter.notifyDataSetChanged();
+                        updateHeroSourceSummary();
+                        loadCastAndCrew();
                     }
                 });
             }
