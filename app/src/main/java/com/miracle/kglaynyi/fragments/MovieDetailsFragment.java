@@ -45,6 +45,7 @@ import com.miracle.kglaynyi.model.Movie;
 import com.miracle.kglaynyi.model.MyMedia;
 import com.miracle.kglaynyi.player.PlayerActivity;
 import com.miracle.kglaynyi.utils.MovieQualityExtractor;
+import com.miracle.kglaynyi.utils.MediaSourceDeduplicator;
 import com.miracle.kglaynyi.utils.StringUtils;
 
 import java.util.ArrayList;
@@ -621,17 +622,19 @@ public class MovieDetailsFragment extends BaseFragment{
             public void run() {
                 Log.i(" " , "in thread");
                 if(movieId==0){
-                    movieFileList = DatabaseClient
-                            .getInstance(mActivity)
-                            .getAppDatabase()
-                            .movieDao()
-                            .getAllByFileName(movieFileName);
+                    movieFileList = MediaSourceDeduplicator.deduplicateMovies(
+                            DatabaseClient
+                                    .getInstance(mActivity)
+                                    .getAppDatabase()
+                                    .movieDao()
+                                    .getAllByFileName(movieFileName));
                 }else {
-                    movieFileList = DatabaseClient
-                            .getInstance(mActivity)
-                            .getAppDatabase()
-                            .movieDao()
-                            .getAllById(movieId);
+                    movieFileList = MediaSourceDeduplicator.deduplicateMovies(
+                            DatabaseClient
+                                    .getInstance(mActivity)
+                                    .getAppDatabase()
+                                    .movieDao()
+                                    .getAllById(movieId));
                 }
                 mActivity.runOnUiThread(new Runnable() {
                     @Override
