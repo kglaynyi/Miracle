@@ -54,7 +54,8 @@
                     android:fontFamily="@font/jost_regular"
                     android:orientation="horizontal"
                     android:src="@drawable/ic_play"
-                    app:cornerRadius="100dp" />
+                    app:cornerRadius="100dp"                     android:visibility="gone"
+                    />
 
                 <TextView
                     android:id="@+id/tvShowTitle"
@@ -256,6 +257,30 @@
                     android:layout_marginHorizontal="20dp"
                     android:orientation="vertical">
 
+
+                    <TextView
+                        android:id="@+id/foundEpisodesText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="@font/jost_regular"
+                        android:gravity="center"
+                        android:textColor="#B3FFFFFF"
+                        android:textSize="14sp"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/heroPlayButtonTV"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="4dp"
+                        android:fontFamily="@font/jost_medium"
+                        android:text="Play"
+                        android:textAllCaps="false"
+                        android:textSize="18sp"
+                        app:icon="@drawable/ic_play"
+                        app:iconGravity="textStart"
+                        app:iconTint="@color/white" />
 
                     <TextView
                         android:id="@+id/overviewtext"
@@ -507,6 +532,68 @@
 
 
                     </androidx.constraintlayout.widget.ConstraintLayout>
+
+                    <LinearLayout
+                        android:id="@+id/episodePreviewHeader"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/episodePreviewTitle"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:fontFamily="@font/jost_medium"
+                            android:text="Episodes"
+                            android:textColor="@color/white"
+                            android:textSize="22sp" />
+
+                        <TextView
+                            android:id="@+id/episodePreviewViewAll"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="@font/jost_medium"
+                            android:padding="8dp"
+                            android:text="View All ›"
+                            android:textColor="@color/white"
+                            android:textSize="15sp" />
+                    </LinearLayout>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/episodePreviewRecycler"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:orientation="horizontal"
+                        android:visibility="gone" />
+
+                    <TextView
+                        android:id="@+id/castTitleTV"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:layout_marginBottom="10dp"
+                        android:fontFamily="@font/jost_medium"
+                        android:text="Cast &amp; Crew"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:visibility="gone" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/castRecyclerTV"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:orientation="horizontal"
+                        android:paddingBottom="14dp"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/SeasonRecyclerTitle"
