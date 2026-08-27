@@ -45,9 +45,17 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
     @Override
     public void onBindViewHolder(IndexViewHolder holder, int position) {
         IndexLink t = indexLinkList.get(position);
-        holder.textViewLink.setText(t.getLink());
-        holder.indexType.setText(t.getIndexType());
-        holder.folderType.setText(t.getFolderType());
+        if ("Google Drive".equals(t.getIndexType())) {
+            String folderName = t.getUsername();
+            holder.textViewLink.setText("Selected folder • "
+                    + (folderName == null || folderName.trim().isEmpty() ? "Google Drive" : folderName));
+            holder.indexType.setText("Google Drive");
+            holder.folderType.setText("Video source");
+        } else {
+            holder.textViewLink.setText(t.getLink());
+            holder.indexType.setText("GDI-JS");
+            holder.folderType.setText(t.getFolderType());
+        }
 
         // A scan belongs to the index, not to this ViewHolder. Rebind the shared
         // progress state whenever Settings/Manage Indexes is recreated.
