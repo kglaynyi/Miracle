@@ -361,6 +361,14 @@ public class PlayerActivity extends AppCompatActivity
                     baseTop + safeTop,
                     baseSide + safeRight,
                     baseTop);
+            applySafeMargins(playerSettingsButton,
+                    baseSide,
+                    baseTop + safeTop,
+                    baseSide + safeRight,
+                    baseTop);
+            if (playerSettingsPanel != null) {
+                playerSettingsPanel.setPadding(0, safeTop, safeRight, safeBottom);
+            }
 
             if (vlcController != null) {
                 vlcController.setPadding(
@@ -408,6 +416,10 @@ public class PlayerActivity extends AppCompatActivity
         clearStartPosition();
         setIntent(intent);
         readQualitySources(intent);
+        readMediaIdentity(intent);
+        loadPlayerProfile();
+        introSkipApplied = false;
+        endSkipApplied = false;
         currentUrl = null;
         initializePlayer();
     }
@@ -430,6 +442,8 @@ public class PlayerActivity extends AppCompatActivity
         }
         handler.removeCallbacks(periodicResumeSave);
         handler.postDelayed(periodicResumeSave, 5000L);
+        handler.removeCallbacks(skipWatcher);
+        handler.postDelayed(skipWatcher, 500L);
         if (usingVlc) {
             handler.removeCallbacks(vlcProgressUpdater);
             handler.post(vlcProgressUpdater);
@@ -440,6 +454,7 @@ public class PlayerActivity extends AppCompatActivity
     public void onPause() {
         saveResumePosition();
         handler.removeCallbacks(periodicResumeSave);
+        handler.removeCallbacks(skipWatcher);
         handler.removeCallbacks(vlcProgressUpdater);
         super.onPause();
         if (Build.VERSION.SDK_INT <= 23) {
@@ -453,6 +468,7 @@ public class PlayerActivity extends AppCompatActivity
     public void onStop() {
         saveResumePosition();
         handler.removeCallbacks(periodicResumeSave);
+        handler.removeCallbacks(skipWatcher);
         handler.removeCallbacks(vlcProgressUpdater);
         super.onStop();
         if (Build.VERSION.SDK_INT > 23) {
@@ -1071,6 +1087,12 @@ public class PlayerActivity extends AppCompatActivity
     }
 
     private void applyViewMode() {
+        if (viewMode == VIEW_16_9 || viewMode == VIEW_4_3) {
+            applyExplicitAspectRatio(viewMode == VIEW_16_9 ? 16f / 9f : 4f / 3f);
+        } else {
+            resetVideoLayoutSize();
+        }
+
         if (!usingVlc) {
             if (playerView == null) return;
             switch (viewMode) {
@@ -1083,6 +1105,8 @@ public class PlayerActivity extends AppCompatActivity
                 case VIEW_CROP:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
                     break;
+                case VIEW_16_9:
+                case VIEW_4_3:
                 case VIEW_FIT:
                 default:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
@@ -1113,6 +1137,14 @@ public class PlayerActivity extends AppCompatActivity
                     vlcVideoLayout.setScaleX(1.18f);
                     vlcVideoLayout.setScaleY(1.18f);
                     break;
+                case VIEW_16_9:
+                    vlcPlayer.setScale(0f);
+                    vlcPlayer.setAspectRatio("16:9");
+                    break;
+                case VIEW_4_3:
+                    vlcPlayer.setScale(0f);
+                    vlcPlayer.setAspectRatio("4:3");
+                    break;
                 case VIEW_FIT:
                 default:
                     vlcPlayer.setAspectRatio(null);
@@ -1122,6 +1154,47 @@ public class PlayerActivity extends AppCompatActivity
         } catch (Throwable t) {
             Log.w("PlayerActivity", "Unable to apply VLC view mode", t);
         }
+    }
+
+    private void resetVideoLayoutSize() {
+        if (playerView != null) {
+            FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+            p.gravity = Gravity.CENTER;
+            playerView.setLayoutParams(p);
+        }
+        if (vlcVideoLayout != null) {
+            FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+            p.gravity = Gravity.CENTER;
+            vlcVideoLayout.setLayoutParams(p);
+        }
+    }
+
+    private void applyExplicitAspectRatio(float ratio) {
+        View root = findViewById(R.id.root);
+        if (root == null || root.getWidth() <= 0 || root.getHeight() <= 0) {
+            if (root != null) root.post(() -> applyExplicitAspectRatio(ratio));
+            return;
+        }
+        int width = root.getWidth();
+        int height = root.getHeight();
+        float rootRatio = width / (float) height;
+        int targetWidth;
+        int targetHeight;
+        if (rootRatio > ratio) {
+            targetHeight = height;
+            targetWidth = Math.round(height * ratio);
+        } else {
+            targetWidth = width;
+            targetHeight = Math.round(width / ratio);
+        }
+        FrameLayout.LayoutParams params =
+                new FrameLayout.LayoutParams(targetWidth, targetHeight, Gravity.CENTER);
+        if (playerView != null) playerView.setLayoutParams(new FrameLayout.LayoutParams(params));
+        if (vlcVideoLayout != null) vlcVideoLayout.setLayoutParams(new FrameLayout.LayoutParams(params));
     }
 
     public boolean showSourceQualityDialog(PlayerQualityButton button) {
