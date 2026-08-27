@@ -221,6 +221,7 @@ public class FileItemAdapter extends RecyclerView.Adapter<FileItemAdapter.FileIt
                     //External Player
                     Intent intent = new Intent(Intent.ACTION_VIEW , Uri.parse(url));
                     intent.setDataAndType(Uri.parse(url) , "video/*");
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     context.startActivity(intent);
                 } else {
                     //Play video
