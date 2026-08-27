@@ -34,6 +34,26 @@
 
 
             <TextView
+                android:id="@+id/continueWatchingTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:fontFamily="@font/jost_medium"
+                android:paddingStart="20dp"
+                android:text="Continue Watching"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/continueWatchingRecycler"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:scrollbars="horizontal"
+                android:visibility="gone" />
+
+            <TextView
                 android:id="@+id/recentlyAdded"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
