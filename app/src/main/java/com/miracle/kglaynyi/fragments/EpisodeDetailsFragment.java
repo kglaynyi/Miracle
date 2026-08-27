@@ -40,6 +40,7 @@ import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
 import com.miracle.kglaynyi.player.PlayerActivity;
 import com.miracle.kglaynyi.utils.MovieQualityExtractor;
+import com.miracle.kglaynyi.utils.MediaSourceDeduplicator;
 import com.miracle.kglaynyi.utils.StringUtils;
 
 import java.text.ParseException;
@@ -252,11 +253,12 @@ public class EpisodeDetailsFragment extends BaseFragment {
             @Override
             public void run() {
                 Log.i(" " , "in thread");
-                episodeFileList = DatabaseClient
-                        .getInstance(mActivity)
-                        .getAppDatabase()
-                        .episodeDao()
-                        .byEpisodeId(episode.getId());
+                episodeFileList = MediaSourceDeduplicator.deduplicateEpisodes(
+                        DatabaseClient
+                                .getInstance(mActivity)
+                                .getAppDatabase()
+                                .episodeDao()
+                                .byEpisodeId(episode.getId()));
                 mActivity.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
