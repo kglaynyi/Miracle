@@ -271,16 +271,22 @@
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/heroPlayButtonTV"
                         android:layout_width="match_parent"
-                        android:layout_height="56dp"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="4dp"
+                        android:layout_height="58dp"
+                        android:layout_marginTop="14dp"
+                        android:layout_marginBottom="8dp"
+                        android:gravity="center"
                         android:fontFamily="@font/jost_medium"
                         android:text="Play"
                         android:textAllCaps="false"
+                        android:textColor="#202020"
                         android:textSize="18sp"
+                        app:backgroundTint="#F2F2F2"
+                        app:cornerRadius="29dp"
                         app:icon="@drawable/ic_play"
                         app:iconGravity="textStart"
-                        app:iconTint="@color/white" />
+                        app:iconPadding="10dp"
+                        app:iconTint="#202020"
+                        app:rippleColor="#33000000" />
 
                     <TextView
                         android:id="@+id/overviewtext"
