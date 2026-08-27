@@ -22,11 +22,7 @@
     </string-array>
 
     <string-array name="index_types">
-        <item>GDIndex</item>
         <item>GDI-JS</item>
-        <item>GoIndex</item>
-        <item>MapleIndex</item>
-        <item>SimpleProgram</item>
     </string-array>
 
     <string-array name="folder_types">
