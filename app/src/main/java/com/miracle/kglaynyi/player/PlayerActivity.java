@@ -121,13 +121,8 @@ public class PlayerActivity extends AppCompatActivity
     private TextView decoderBadge;
 
     private View vlcController;
-    private View exoSafeControls;
     private View exoBuiltInController;
-    private Button vlcAudioTracks;
-    private Button vlcSubtitleTracks;
     private Button vlcPlayPause;
-    private Button vlcViewMode;
-    private Button exoViewMode;
     private SeekBar vlcSeekBar;
     private TextView vlcCurrentTime;
     private TextView vlcTotalTime;
@@ -221,14 +216,9 @@ public class PlayerActivity extends AppCompatActivity
         decoderBadge = findViewById(R.id.decoder_badge);
 
         vlcController = findViewById(R.id.vlc_controller);
-        exoSafeControls = findViewById(R.id.exo_safe_controls);
         exoBuiltInController = playerView.findViewById(
                 com.google.android.exoplayer2.ui.R.id.exo_controller);
-        vlcAudioTracks = findViewById(R.id.vlc_audio_tracks);
-        vlcSubtitleTracks = findViewById(R.id.vlc_subtitle_tracks);
         vlcPlayPause = findViewById(R.id.vlc_play_pause);
-        vlcViewMode = findViewById(R.id.video_view_mode);
-        exoViewMode = findViewById(R.id.exo_view_mode);
         vlcSeekBar = findViewById(R.id.vlc_seek_bar);
         vlcCurrentTime = findViewById(R.id.vlc_current_time);
         vlcTotalTime = findViewById(R.id.vlc_total_time);
@@ -257,20 +247,8 @@ public class PlayerActivity extends AppCompatActivity
         loadPlayerProfile();
         bindSettingsPanel();
 
-        if (vlcAudioTracks != null) {
-            vlcAudioTracks.setOnClickListener(v -> showVlcTrackDialog(false));
-        }
-        if (vlcSubtitleTracks != null) {
-            vlcSubtitleTracks.setOnClickListener(v -> showVlcTrackDialog(true));
-        }
         if (vlcPlayPause != null) {
             vlcPlayPause.setOnClickListener(v -> toggleVlcPlayback());
-        }
-        if (vlcViewMode != null) {
-            vlcViewMode.setOnClickListener(v -> cycleViewMode());
-        }
-        if (exoViewMode != null) {
-            exoViewMode.setOnClickListener(v -> cycleViewMode());
         }
 
         vlcSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -363,11 +341,6 @@ public class PlayerActivity extends AppCompatActivity
                 safeBottom = Math.max(safeBottom, gestures.bottom);
             }
 
-            applySafeMargins(exoSafeControls,
-                    baseSide + safeLeft,
-                    baseTop + safeTop,
-                    baseSide + safeRight,
-                    baseTop);
             applySafeMargins(decoderBadge,
                     baseSide,
                     baseTop + safeTop,
@@ -532,32 +505,14 @@ public class PlayerActivity extends AppCompatActivity
 
     @Override
     public void onVisibilityChanged(int visibility) {
-        if (usingVlc || exoSafeControls == null) return;
-        exoSafeControls.animate().cancel();
-        if (visibility == View.VISIBLE) {
-            exoSafeControls.setAlpha(1f);
-            exoSafeControls.setVisibility(View.VISIBLE);
-        } else {
-            exoSafeControls.animate()
-                    .alpha(0f)
-                    .setDuration(120L)
-                    .withEndAction(() -> {
-                        if (!usingVlc && exoSafeControls != null) {
-                            exoSafeControls.setVisibility(View.GONE);
-                            exoSafeControls.setAlpha(1f);
-                        }
-                    })
-                    .start();
-        }
+        // Legacy top-left Fit / Quality / subtitle-size controls were removed.
+        // Settings live exclusively in the three-dot panel now.
     }
 
     @Override public void onClick(View view) {}
 
     private void syncExoSafeControls() {
-        if (exoSafeControls == null || playerView == null || usingVlc) return;
-        boolean visible = playerView.isControllerFullyVisible();
-        exoSafeControls.setAlpha(1f);
-        exoSafeControls.setVisibility(visible ? View.VISIBLE : View.GONE);
+        // Kept as a no-op for the existing player lifecycle.
     }
 
     private void makeExoControllerTransparent() {
@@ -957,12 +912,9 @@ public class PlayerActivity extends AppCompatActivity
 
         usingVlc = true;
         playerView.setVisibility(View.GONE);
-        if (exoSafeControls != null) exoSafeControls.setVisibility(View.GONE);
         vlcVideoLayout.setVisibility(View.VISIBLE);
         vlcController.setVisibility(View.VISIBLE);
         decoderBadge.setVisibility(View.VISIBLE);
-        vlcAudioTracks.setEnabled(false);
-        vlcSubtitleTracks.setEnabled(false);
         vlcSeekBar.setProgress(0);
         vlcCurrentTime.setText("00:00");
         vlcTotalTime.setText("00:00");
@@ -1042,7 +994,6 @@ public class PlayerActivity extends AppCompatActivity
         softwareFallbackScheduled = false;
         if (vlcController != null) vlcController.setVisibility(View.GONE);
         if (decoderBadge != null) decoderBadge.setVisibility(View.GONE);
-        if (exoSafeControls != null) exoSafeControls.setVisibility(View.GONE);
     }
 
     private void updateTrackSelectorParameters() {
@@ -1134,9 +1085,7 @@ public class PlayerActivity extends AppCompatActivity
     }
 
     private void updateViewModeLabels() {
-        String label = VIEW_MODE_LABELS[viewMode];
-        if (vlcViewMode != null) vlcViewMode.setText(label);
-        if (exoViewMode != null) exoViewMode.setText(label);
+        // The aspect selector in the three-dot VIDEO panel is the only view-mode UI.
     }
 
     private void applyViewMode() {
@@ -1459,8 +1408,6 @@ public class PlayerActivity extends AppCompatActivity
         if (!usingVlc || vlcPlayer == null) return;
         MediaPlayer.TrackDescription[] audioTracks = vlcPlayer.getAudioTracks();
         MediaPlayer.TrackDescription[] subtitleTracks = vlcPlayer.getSpuTracks();
-        vlcAudioTracks.setEnabled(audioTracks != null && audioTracks.length > 0);
-        vlcSubtitleTracks.setEnabled(subtitleTracks != null && subtitleTracks.length > 0);
     }
 
     private void showVlcTrackDialog(boolean subtitles) {
