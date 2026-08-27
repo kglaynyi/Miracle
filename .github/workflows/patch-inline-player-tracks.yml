@@ -19,16 +19,24 @@ jobs:
         with:
           token: ${{ github.token }}
 
-      - name: Apply patch
+      - name: Fix ExoPlayer track override import
+        shell: bash
         run: |
-          python3 tools/patch_inline_player_tracks.py
-          git checkout -- .github/workflows/release-apk.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/miracle/kglaynyi/player/PlayerActivity.java')
+          s = p.read_text()
+          s = s.replace(
+              'import com.google.android.exoplayer2.trackselection.TrackSelectionOverrides.TrackSelectionOverride;',
+              'import com.google.android.exoplayer2.trackselection.TrackSelectionOverride;')
+          p.write_text(s)
+          PY
 
       - name: Commit patch
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/com/miracle/kglaynyi/player/PlayerActivity.java app/src/main/res/layout/activity_player.xml app/build.gradle
-          git commit -m "Refine direct audio subtitle player controls"
+          git add app/src/main/java/com/miracle/kglaynyi/player/PlayerActivity.java
+          git commit -m "Fix ExoPlayer inline track override import"
           git push origin HEAD:main
