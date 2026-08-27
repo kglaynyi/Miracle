@@ -235,9 +235,12 @@ public class IndexUtils {
 
                 String json = IndexFolderSelectionUtils.encode(safeFolders);
 
-                // Folder membership is not stored on old media rows, so a changed
-                // selection gets one clean rescan. Normal refreshes remain cached.
-                GdiJsIndexClient.clearIndexMediaForRescan(indexLink.getId());
+                // Never clear the index cache when folder choices change. Remove
+                // only rows that are known to belong to folders no longer selected.
+                // Rows from older database versions without folder_path are kept
+                // and naturally deduplicated as selected folders are refreshed.
+                cleanupDeselectedFolderMedia(context, indexLink.getId(), safeFolders);
+                ScanCheckpointStore.clear(context, indexLink.getId());
                 DatabaseClient.getInstance(context).getAppDatabase().indexLinksDao()
                         .updateSelectedFolders(indexLink.getId(), json);
                 indexLink.setSelectedFoldersJson(json);
@@ -258,6 +261,62 @@ public class IndexUtils {
                         GdiJsIndexClient.Progress.failed("Folder scan failed • " + message));
             }
         }, "MiracleFolderSelectionScan").start();
+    }
+
+    private static void cleanupDeselectedFolderMedia(
+            Context context, int indexId, List<String> selectedFolders) {
+        if (context == null || selectedFolders == null || selectedFolders.isEmpty()) return;
+        if (selectedFolders.contains("/")) return;
+
+        DatabaseClient db = DatabaseClient.getInstance(context);
+        List<com.miracle.kglaynyi.model.Movie> movies =
+                db.getAppDatabase().movieDao().getAllFromIndex(indexId);
+        if (movies != null) {
+            for (com.miracle.kglaynyi.model.Movie movie : movies) {
+                if (movie == null) continue;
+                String path = movie.getFolder_path();
+                if (path == null || path.trim().isEmpty()) continue;
+                if (!isPathSelected(path, selectedFolders)) {
+                    String gdId = movie.getGd_id();
+                    if (gdId != null && !gdId.trim().isEmpty()) {
+                        db.getAppDatabase().movieDao().deleteByGdId(gdId);
+                    }
+                }
+            }
+        }
+
+        List<Episode> episodes = db.getAppDatabase().episodeDao().getAllFromIndex(indexId);
+        if (episodes != null) {
+            for (Episode episode : episodes) {
+                if (episode == null) continue;
+                String path = episode.getFolder_path();
+                if (path == null || path.trim().isEmpty()) continue;
+                if (!isPathSelected(path, selectedFolders)) {
+                    String gdId = episode.getGd_id();
+                    if (gdId != null && !gdId.trim().isEmpty()) {
+                        db.getAppDatabase().episodeDao().deleteByGdId(gdId);
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean isPathSelected(String folderPath, List<String> selectedFolders) {
+        if (folderPath == null) return true;
+        String path = folderPath.trim();
+        for (String selected : selectedFolders) {
+            if (selected == null) continue;
+            String root = selected.trim();
+            if ("/".equals(root)) return true;
+            while (root.startsWith("/")) root = root.substring(1);
+            while (root.endsWith("/")) root = root.substring(0, root.length() - 1);
+            if (path.equalsIgnoreCase(root)
+                    || path.toLowerCase(java.util.Locale.US)
+                    .startsWith(root.toLowerCase(java.util.Locale.US) + "/")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void purgeUnsupportedSources(Context context) {
