@@ -506,6 +506,7 @@ public final class GdiJsIndexClient {
                                         Map<String, CachedEntry> cache) {
         String id = file.getId();
         boolean treatAsTv = shouldTreatAsTv(folderUrl, file.getName(), tvShows);
+        String streamUrl = resolveFileUrl(rootUrl, folderUrl, file);
 
         if (id != null && !id.trim().isEmpty()) {
             // GDI-JS signed download URLs can change between scans. The stable Drive
@@ -527,6 +528,16 @@ public final class GdiJsIndexClient {
 
             CachedEntry cached = cache.get(id);
             if (cached != null && cached.tv == treatAsTv && !isRemoteNewer(file.getModifiedTime(), cached.modifiedTime)) {
+                // Reuse TMDB metadata, but always refresh the signed GDI-JS URL.
+                if (treatAsTv) {
+                    DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
+                            .updateSourceMetadata(id, streamUrl, file.getName(), file.getSize(),
+                                    file.getMimeType(), file.getModifiedTime());
+                } else {
+                    DatabaseClient.getInstance(context).getAppDatabase().movieDao()
+                            .updateSourceMetadata(id, streamUrl, file.getName(), file.getSize(),
+                                    file.getMimeType(), file.getModifiedTime());
+                }
                 return true;
             }
 
@@ -544,7 +555,6 @@ public final class GdiJsIndexClient {
             }
         }
 
-        String streamUrl = resolveFileUrl(rootUrl, folderUrl, file);
         if (treatAsTv) {
             Episode episode = new Episode();
             episode.setFileName(file.getName());
