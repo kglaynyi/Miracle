@@ -39,6 +39,7 @@ public final class ScanCheckpointStore {
         public int selectedRootIndex;
         public String selectedRootPath;
         public List<FolderCursor> queue = new ArrayList<>();
+        public List<String> completedFolders = new ArrayList<>();
         public int folders;
         public int files;
         public int videos;
@@ -61,6 +62,7 @@ public final class ScanCheckpointStore {
                 return null;
             }
             if (state.queue == null) state.queue = new ArrayList<>();
+            if (state.completedFolders == null) state.completedFolders = new ArrayList<>();
             return state;
         } catch (Exception ignored) {
             clear(context, indexId);
