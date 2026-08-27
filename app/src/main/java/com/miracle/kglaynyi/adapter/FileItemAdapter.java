@@ -92,9 +92,6 @@ public class FileItemAdapter extends RecyclerView.Adapter<FileItemAdapter.FileIt
             if (media instanceof Movie) {
                 DatabaseClient.getInstance(context).getAppDatabase()
                         .movieDao().updatePlayed(((Movie) media).getId());
-            } else if (media instanceof Episode) {
-                DatabaseClient.getInstance(context).getAppDatabase()
-                        .episodeDao().updatePlayed(((Episode) media).getId());
             }
         }, "MiracleMarkPlayed").start();
     }
