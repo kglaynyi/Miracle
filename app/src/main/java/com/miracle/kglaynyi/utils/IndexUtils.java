@@ -113,28 +113,22 @@ public class IndexUtils {
 
                 boolean tvShows = "TVShows".equals(folderType);
 
-                if ("GDI-JS".equals(indexType)) {
-                    GdiJsIndexClient.scan(link, user, pass, tvShows, id, progress -> publishProgress(id, listener, progress));
+                if ("Google Drive".equals(indexType)) {
+                    GoogleDriveFolderClient.scan(
+                            mContext, link, id,
+                            progress -> publishProgress(id, listener, progress));
                     return;
                 }
 
-                publishProgress(id, listener, GdiJsIndexClient.Progress.status(
-                        "Refreshing index…", -1, 0, 0, 0, 0, 0, 0));
-
-                resetPagingState();
-                if ("GDIndex".equals(indexType)) {
-                    postRequestGDIndex(link, user, pass, tvShows, id);
-                } else if ("GoIndex".equals(indexType)) {
-                    postRequestGoIndex(link, user, pass, tvShows, id);
-                } else if ("MapleIndex".equals(indexType) || "Maple".equals(indexType)) {
-                    postRequestMapleIndex(link, user, pass, tvShows, id);
-                } else if ("SimpleProgram".equals(indexType)) {
-                    postRequestSimpleProgramIndex(link, user, pass, tvShows, id);
+                if ("GDI-JS".equals(indexType)) {
+                    GdiJsIndexClient.scan(
+                            link, user, pass, tvShows, id,
+                            progress -> publishProgress(id, listener, progress));
+                    return;
                 }
 
-                int count = getNoOfMedia(mContext, saved);
-                publishProgress(id, listener, GdiJsIndexClient.Progress.done(
-                        "Refresh complete • " + count + " items", count, 0, count));
+                publishProgress(id, listener, GdiJsIndexClient.Progress.failed(
+                        "This legacy index type is no longer supported. Re-add it as GDI-JS."));
             } catch (Exception e) {
                 String message = e.getMessage();
                 if (message == null || message.trim().isEmpty()) {
