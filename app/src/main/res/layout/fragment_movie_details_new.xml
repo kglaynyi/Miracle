@@ -54,7 +54,8 @@
                     android:fontFamily="@font/jost_regular"
                     android:orientation="horizontal"
                     android:src="@drawable/ic_play"
-                    app:cornerRadius="100dp" />
+                    app:cornerRadius="100dp"                     android:visibility="gone"
+                    />
 
                 <TextView
                     android:id="@+id/title_text"
@@ -214,6 +215,31 @@
                     android:layout_marginHorizontal="20dp"
                     android:orientation="vertical">
 
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/heroPlayButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="4dp"
+                        android:fontFamily="@font/jost_medium"
+                        android:text="Play"
+                        android:textAllCaps="false"
+                        android:textSize="18sp"
+                        app:icon="@drawable/ic_play"
+                        app:iconGravity="textStart"
+                        app:iconTint="@color/white" />
+
+                    <TextView
+                        android:id="@+id/movieSourceSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:fontFamily="@font/jost_regular"
+                        android:gravity="center"
+                        android:textColor="#B3FFFFFF"
+                        android:textSize="14sp"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/overviewtext"
@@ -501,6 +527,28 @@
                         </LinearLayout>
                     </LinearLayout>
 
+
+                    <TextView
+                        android:id="@+id/castTitleMovie"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="10dp"
+                        android:fontFamily="@font/jost_medium"
+                        android:text="Cast &amp; Crew"
+                        android:textColor="@color/white"
+                        android:textSize="22sp"
+                        android:visibility="gone" />
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/castRecyclerMovie"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:clipToPadding="false"
+                        android:nestedScrollingEnabled="false"
+                        android:orientation="horizontal"
+                        android:paddingBottom="14dp"
+                        android:visibility="gone" />
 
                     <TextView
                         android:id="@+id/linktitle"
