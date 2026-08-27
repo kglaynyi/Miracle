@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Major Miracle media experience overhaul: persistent GDI-JS scan checkpoints and resume, cache retention when folders change, stable resume positions across expiring signed URLs, raw source URLs hidden behind Play and Download controls, named Downloads/Miracle downloads, redesigned movie and TV detail pages with TMDB cast/crew and horizontal episode cards, next-episode playback, and a new VIDEO/AUDIO/SUBTITLE player panel with aspect controls, playback speed, source quality, audio/subtitle selection, subtitle sizing, and per-show intro/end auto-skip settings. Includes safe Room migrations that preserve the existing media cache."
+          NOTES="Player UI cleanup based on device testing: removes the old Fit, Quality, and Sub 22 overlay controls, keeps all playback settings under the three-dot VIDEO/AUDIO/SUBTITLE panel, opens audio and subtitle track selection directly from their tabs with no extra button, adds an in-panel back arrow and makes Android Back close settings before leaving playback, simplifies VLC fallback controls, and fixes the movie/TV Play and Resume buttons into properly aligned light pill actions."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
             gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
