@@ -23,6 +23,10 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.net.UnknownHostException;
+import java.net.SocketTimeoutException;
+import java.net.ConnectException;
+import java.net.NoRouteToHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
@@ -40,6 +44,8 @@ public final class GdiJsIndexClient {
     private static final int READ_TIMEOUT_MS = 30000;
     private static final int MAX_PAGES_PER_FOLDER = 1000;
     private static final int MAX_FOLDERS = 10000;
+    private static final int NETWORK_RETRY_COUNT = 4;
+    private static final long NETWORK_RETRY_BASE_DELAY_MS = 2000L;
     private static final String DEFAULT_DRIVE_PREFIX = "0:/";
 
     private GdiJsIndexClient() {}
@@ -166,54 +172,29 @@ public final class GdiJsIndexClient {
                 0, 0, 0, 0, 0, 0));
 
         String baseUrl = normalizeBaseUrl(rawBaseUrl);
-        Session session = login(baseUrl, username, password);
+        Session session = loginWithRetry(baseUrl, username, password, listener);
         if (!session.success) throw new IOException(session.message);
 
-        emit(listener, Progress.status("Login verified. Discovering videos…", -1,
+        emit(listener, Progress.status("Login verified. Scanning library…", -1,
                 0, 0, 0, 0, 0, 0));
 
         String apiRoot = getDefaultApiRoot(baseUrl);
         Set<String> visitedFolders = new HashSet<>();
-        List<VideoEntry> videoEntries = new ArrayList<>();
-        int[] stats = new int[]{0, 0, 0}; // folders, files, videos
+        int[] stats = new int[]{0, 0, 0, 0}; // folders, files, videos found, videos processed
 
-        discoverFolder(apiRoot, session.cookie, visitedFolders, videoEntries, stats, indexId, tvShows, listener);
+        discoverAndProcessFolder(apiRoot, baseUrl, session.cookie, visitedFolders,
+                stats, indexId, tvShows, listener);
 
-        int total = videoEntries.size();
-        if (total == 0) {
-            clearIndexMediaForRescan(indexId);
-            emit(listener, Progress.done("Scan complete • 0 videos found", 0, stats[0], stats[1]));
-            return 0;
-        }
-
-        emit(listener, Progress.status("Discovery complete • rebuilding library…", -1,
-                0, total, total, stats[0], stats[1], total));
-        clearIndexMediaForRescan(indexId);
-
-        emit(listener, Progress.status("Found " + total + " videos • processing 0/" + total,
-                0, 0, total, total, stats[0], stats[1], total));
-
-        for (int i = 0; i < total; i++) {
-            VideoEntry entry = videoEntries.get(i);
-            processVideo(baseUrl, entry.folderUrl, entry.file, tvShows, indexId);
-
-            int processed = i + 1;
-            int remaining = total - processed;
-            int percent = (int) ((processed * 100L) / total);
-            String message = processed + "/" + total + " • " + percent
-                    + "% • " + remaining + " left";
-            emit(listener, Progress.status(message, percent, processed, total,
-                    remaining, stats[0], stats[1], total));
-        }
-
+        int total = stats[2];
         emit(listener, Progress.done("Done • " + total + " videos scanned",
                 total, stats[0], stats[1]));
         return total;
     }
 
-    private static void discoverFolder(String folderUrl, String cookie,
-                                       Set<String> visitedFolders, List<VideoEntry> videoEntries,
-                                       int[] stats, int indexId, boolean tvShows, ProgressListener listener) throws Exception {
+    private static void discoverAndProcessFolder(String folderUrl, String rootUrl, String cookie,
+                                                 Set<String> visitedFolders, int[] stats,
+                                                 int indexId, boolean selectedTvShows,
+                                                 ProgressListener listener) throws Exception {
         if (stats[0] >= MAX_FOLDERS) {
             throw new IOException("Index contains too many folders to scan safely");
         }
@@ -223,36 +204,115 @@ public final class GdiJsIndexClient {
         String pageToken = "";
         int pageIndex = 0;
         for (int page = 0; page < MAX_PAGES_PER_FOLDER; page++) {
-            ResFormat result = fetchPage(folderUrl, cookie, pageToken, pageIndex);
+            ResFormat result = fetchPageWithRetry(folderUrl, cookie, pageToken, pageIndex,
+                    stats, listener);
             if (result == null || result.getData() == null) return;
 
             List<File> files = result.getData().getFiles();
             if (files != null) {
                 for (File file : files) {
                     if (file == null) continue;
+
                     if (isFolder(file)) {
                         String child = appendPath(folderUrl, file.getName(), true);
-                        discoverFolder(child, cookie, visitedFolders, videoEntries, stats, indexId, tvShows, listener);
-                    } else {
-                        stats[1]++;
-                        if (isVideoFile(file)) {
-                            stats[2]++;
-                            if (!tvShows && !looksLikeEpisode(folderUrl, file.getName())) saveDiscoveredPlaceholder(folderUrl, file, indexId);
-                            videoEntries.add(new VideoEntry(folderUrl, file));
-                        }
+                        discoverAndProcessFolder(child, rootUrl, cookie, visitedFolders,
+                                stats, indexId, selectedTvShows, listener);
+                        continue;
                     }
+
+                    stats[1]++;
+                    if (!isVideoFile(file)) continue;
+
+                    stats[2]++;
+                    processVideo(rootUrl, folderUrl, file, selectedTvShows, indexId);
+                    stats[3]++;
+
+                    String message = "Scanning… " + stats[0] + " folders • "
+                            + stats[1] + " files • " + stats[2] + " videos • "
+                            + stats[3] + " processed";
+                    emit(listener, Progress.status(message, -1, stats[3], stats[2],
+                            Math.max(0, stats[2] - stats[3]), stats[0], stats[1], stats[2]));
                 }
             }
-
-            String discoveryMessage = "Discovering… " + stats[0] + " folders • "
-                    + stats[1] + " files • " + stats[2] + " videos";
-            emit(listener, Progress.status(discoveryMessage, -1, 0, 0, 0,
-                    stats[0], stats[1], stats[2]));
 
             String next = result.getNextPageToken();
             if (next == null || next.trim().isEmpty()) break;
             pageToken = next;
             pageIndex++;
+        }
+    }
+
+    private static Session loginWithRetry(String baseUrl, String username, String password,
+                                          ProgressListener listener) throws Exception {
+        Exception last = null;
+        for (int attempt = 1; attempt <= NETWORK_RETRY_COUNT; attempt++) {
+            try {
+                return login(baseUrl, username, password);
+            } catch (Exception e) {
+                if (!isTransientNetworkError(e) || attempt == NETWORK_RETRY_COUNT) throw e;
+                last = e;
+                long delay = NETWORK_RETRY_BASE_DELAY_MS * attempt;
+                emit(listener, Progress.status("Network/DNS unavailable • retry "
+                                + attempt + "/" + NETWORK_RETRY_COUNT + " in "
+                                + (delay / 1000) + "s", -1,
+                        0, 0, 0, 0, 0, 0));
+                sleepRetry(delay);
+            }
+        }
+        throw last == null ? new IOException("Unable to connect to index") : last;
+    }
+
+    private static ResFormat fetchPageWithRetry(String folderUrl, String cookie,
+                                                String pageToken, int pageIndex,
+                                                int[] stats, ProgressListener listener) throws Exception {
+        Exception last = null;
+        for (int attempt = 1; attempt <= NETWORK_RETRY_COUNT; attempt++) {
+            try {
+                return fetchPage(folderUrl, cookie, pageToken, pageIndex);
+            } catch (Exception e) {
+                if (!isTransientNetworkError(e) || attempt == NETWORK_RETRY_COUNT) {
+                    if (isTransientNetworkError(e)) {
+                        throw new IOException("Network/DNS unavailable after "
+                                + NETWORK_RETRY_COUNT + " retries. "
+                                + stats[3] + " videos were already processed and kept. "
+                                + "Tap refresh to resume.", e);
+                    }
+                    throw e;
+                }
+                last = e;
+                long delay = NETWORK_RETRY_BASE_DELAY_MS * attempt;
+                emit(listener, Progress.status("Network/DNS issue • retry "
+                                + attempt + "/" + NETWORK_RETRY_COUNT + " in "
+                                + (delay / 1000) + "s • " + stats[3]
+                                + " videos kept", -1,
+                        stats[3], stats[2], Math.max(0, stats[2] - stats[3]),
+                        stats[0], stats[1], stats[2]));
+                sleepRetry(delay);
+            }
+        }
+        throw last == null ? new IOException("Unable to read index") : last;
+    }
+
+    private static boolean isTransientNetworkError(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof UnknownHostException
+                    || current instanceof SocketTimeoutException
+                    || current instanceof ConnectException
+                    || current instanceof NoRouteToHostException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    private static void sleepRetry(long delayMs) throws IOException {
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Scan interrupted", e);
         }
     }
 
@@ -428,11 +488,15 @@ public final class GdiJsIndexClient {
     private static void processVideo(String rootUrl, String folderUrl, File file,
                                      boolean tvShows, int indexId) {
         String id = file.getId();
-        boolean treatAsTv = tvShows || looksLikeEpisode(folderUrl, file.getName());
+        boolean treatAsTv = shouldTreatAsTv(folderUrl, file.getName(), tvShows);
 
         // A previous scan may have incorrectly stored an episode as a Movie.
-        if (treatAsTv && id != null && !id.trim().isEmpty()) {
-            DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
+        if (id != null && !id.trim().isEmpty()) {
+            if (treatAsTv) {
+                DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
+            } else {
+                DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByGdId(id);
+            }
         }
         if (isAlreadyPresent(id, file.getModifiedTime())) return;
 
@@ -466,6 +530,23 @@ public final class GdiJsIndexClient {
                 DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
             }
         }
+    }
+
+    private static boolean shouldTreatAsTv(String folderUrl, String fileName,
+                                             boolean selectedTvShows) {
+        String path = (folderUrl == null ? "" : folderUrl)
+                .replace("%20", " ").toLowerCase();
+
+        // Explicit folder names win for mixed-root GDI-JS libraries.
+        if (path.contains("/movie/") || path.contains("/movies/")) return false;
+        if (path.contains("/series/") || path.contains("/tvshows/")
+                || path.contains("/tv shows/") || path.contains("/shows/")) return true;
+
+        // Anime can contain both films and episodic series.
+        if (path.contains("/anime/")) return looksLikeEpisode(folderUrl, fileName);
+
+        if (looksLikeEpisode(folderUrl, fileName)) return true;
+        return selectedTvShows;
     }
 
     private static boolean looksLikeEpisode(String folderUrl, String fileName) {
