@@ -1,0 +1,35 @@
+name: Validate Miracle v1.0.18
+
+on:
+  push:
+    branches:
+      - fix-v1018-resilient-scan-icon
+    paths:
+      - '.github/workflows/validate-v1018.yml'
+      - 'app/**'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+    steps:
+      - name: Checkout v1.0.18
+        uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Verify TMDB key
+        run: |
+          if [[ -z "$TMDB_API_KEY" ]]; then
+            echo "::error::TMDB_API_KEY is missing"
+            exit 1
+          fi
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
