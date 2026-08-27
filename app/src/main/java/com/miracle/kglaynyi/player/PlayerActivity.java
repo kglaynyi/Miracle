@@ -257,11 +257,21 @@ public class PlayerActivity extends AppCompatActivity
         loadPlayerProfile();
         bindSettingsPanel();
 
-        vlcAudioTracks.setOnClickListener(v -> showVlcTrackDialog(false));
-        vlcSubtitleTracks.setOnClickListener(v -> showVlcTrackDialog(true));
-        vlcPlayPause.setOnClickListener(v -> toggleVlcPlayback());
-        vlcViewMode.setOnClickListener(v -> cycleViewMode());
-        exoViewMode.setOnClickListener(v -> cycleViewMode());
+        if (vlcAudioTracks != null) {
+            vlcAudioTracks.setOnClickListener(v -> showVlcTrackDialog(false));
+        }
+        if (vlcSubtitleTracks != null) {
+            vlcSubtitleTracks.setOnClickListener(v -> showVlcTrackDialog(true));
+        }
+        if (vlcPlayPause != null) {
+            vlcPlayPause.setOnClickListener(v -> toggleVlcPlayback());
+        }
+        if (vlcViewMode != null) {
+            vlcViewMode.setOnClickListener(v -> cycleViewMode());
+        }
+        if (exoViewMode != null) {
+            exoViewMode.setOnClickListener(v -> cycleViewMode());
+        }
 
         vlcSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -501,7 +511,23 @@ public class PlayerActivity extends AppCompatActivity
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        return (!usingVlc && playerView.dispatchKeyEvent(event)) || super.dispatchKeyEvent(event);
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK
+                && event.getAction() == KeyEvent.ACTION_UP
+                && isSettingsPanelOpen()) {
+            closeSettingsPanel();
+            return true;
+        }
+        return (!usingVlc && playerView != null && playerView.dispatchKeyEvent(event))
+                || super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (isSettingsPanelOpen()) {
+            closeSettingsPanel();
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override
@@ -610,8 +636,19 @@ public class PlayerActivity extends AppCompatActivity
         });
 
         tabVideo.setOnClickListener(v -> showSettingsTab(0));
-        tabAudio.setOnClickListener(v -> showSettingsTab(1));
-        tabSubtitle.setOnClickListener(v -> showSettingsTab(2));
+        tabAudio.setOnClickListener(v -> {
+            showSettingsTab(1);
+            showTrackSelection(false);
+        });
+        tabSubtitle.setOnClickListener(v -> {
+            showSettingsTab(2);
+            showTrackSelection(true);
+        });
+
+        View settingsBack = findViewById(R.id.player_settings_back);
+        if (settingsBack != null) {
+            settingsBack.setOnClickListener(v -> closeSettingsPanel());
+        }
 
         findViewById(R.id.aspect_default).setOnClickListener(v -> setViewMode(VIEW_FIT));
         findViewById(R.id.aspect_stretch).setOnClickListener(v -> setViewMode(VIEW_FILL));
@@ -635,9 +672,21 @@ public class PlayerActivity extends AppCompatActivity
         playbackSpeedButton.setOnClickListener(v -> cyclePlaybackSpeed());
         updatePlaybackSpeedLabel();
 
-        findViewById(R.id.panel_audio_tracks).setOnClickListener(v -> showTrackSelection(false));
-        findViewById(R.id.panel_subtitle_tracks).setOnClickListener(v -> showTrackSelection(true));
         updateAspectButtons();
+    }
+
+    private boolean isSettingsPanelOpen() {
+        return playerSettingsPanel != null
+                && playerSettingsPanel.getVisibility() == View.VISIBLE;
+    }
+
+    private void closeSettingsPanel() {
+        if (playerSettingsPanel == null) return;
+        playerSettingsPanel.setVisibility(View.GONE);
+        decorView.setSystemUiVisibility(uiOptions);
+        if (!usingVlc && playerView != null) {
+            playerView.showController();
+        }
     }
 
     private void showSettingsTab(int tab) {
@@ -1478,6 +1527,10 @@ public class PlayerActivity extends AppCompatActivity
 
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
+            if (isSettingsPanelOpen()) {
+                closeSettingsPanel();
+                return true;
+            }
             if (usingVlc) {
                 vlcController.setVisibility(
                         vlcController.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
