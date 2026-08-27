@@ -30,6 +30,7 @@
     </string-array>
 
     <string-array name="folder_types">
+        <item>Movies + TV Shows</item>
         <item>Movies</item>
         <item>TVShows</item>
     </string-array>
