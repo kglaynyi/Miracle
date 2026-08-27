@@ -249,7 +249,7 @@ public class FileItemAdapter extends RecyclerView.Adapter<FileItemAdapter.FileIt
                     }
                     if (itemUrl == null || itemUrl.trim().isEmpty()) continue;
                     urls.add(itemUrl);
-                    labels.add(buildQualityLabel(fileName, urls.size()));
+                    labels.add(buildQualityLabel(fileName, itemUrl, urls.size()));
                 }
 
                 if (urls.size() < 2) return;
