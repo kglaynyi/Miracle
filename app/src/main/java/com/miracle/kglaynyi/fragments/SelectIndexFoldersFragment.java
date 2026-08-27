@@ -39,8 +39,11 @@ public class SelectIndexFoldersFragment extends BaseFragment {
     private LinearLayout checkboxContainer;
     private Button cancelButton;
     private Button saveButton;
+    private Button retryButton;
 
     private IndexLink indexLink;
+    private int indexId;
+    private int loadGeneration;
     private final Map<String, CheckBox> checkBoxes = new LinkedHashMap<>();
     private boolean bindingChecks;
 
@@ -71,12 +74,14 @@ public class SelectIndexFoldersFragment extends BaseFragment {
         checkboxContainer = view.findViewById(R.id.folderCheckboxContainer);
         cancelButton = view.findViewById(R.id.folderPickerCancel);
         saveButton = view.findViewById(R.id.folderPickerSave);
+        retryButton = view.findViewById(R.id.folderPickerRetry);
 
         cancelButton.setOnClickListener(v ->
                 mActivity.getSupportFragmentManager().popBackStack());
         saveButton.setOnClickListener(v -> saveAndScan());
+        retryButton.setOnClickListener(v -> loadIndexAndFolders(indexId));
 
-        int indexId = getArguments() == null ? 0 : getArguments().getInt(ARG_INDEX_ID, 0);
+        indexId = getArguments() == null ? 0 : getArguments().getInt(ARG_INDEX_ID, 0);
         if (indexId <= 0) {
             showError("Could not open this index.");
             return;
@@ -86,6 +91,10 @@ public class SelectIndexFoldersFragment extends BaseFragment {
     }
 
     private void loadIndexAndFolders(int indexId) {
+        final int generation = ++loadGeneration;
+        retryButton.setVisibility(View.GONE);
+        checkboxContainer.removeAllViews();
+        checkBoxes.clear();
         setBusy(true, "Loading folders from GDI-JS…");
 
         new Thread(() -> {
@@ -93,11 +102,17 @@ public class SelectIndexFoldersFragment extends BaseFragment {
                 IndexLink saved = DatabaseClient.getInstance(mActivity)
                         .getAppDatabase().indexLinksDao().findById(indexId);
                 if (saved == null) {
-                    mActivity.runOnUiThread(() -> showError("Index was not found."));
+                    if (generation != loadGeneration) return;
+                    mActivity.runOnUiThread(() -> {
+                        if (generation == loadGeneration && isAdded()) showError("Index was not found.");
+                    });
                     return;
                 }
                 if (!"GDI-JS".equals(saved.getIndexType())) {
-                    mActivity.runOnUiThread(() -> showError("Only GDI-JS indexes are supported."));
+                    if (generation != loadGeneration) return;
+                    mActivity.runOnUiThread(() -> {
+                        if (generation == loadGeneration && isAdded()) showError("Only GDI-JS indexes are supported.");
+                    });
                     return;
                 }
 
@@ -114,7 +129,9 @@ public class SelectIndexFoldersFragment extends BaseFragment {
                     selected.addAll(stored);
                 }
 
+                if (generation != loadGeneration) return;
                 mActivity.runOnUiThread(() -> {
+                    if (generation != loadGeneration || !isAdded()) return;
                     indexLink = saved;
                     indexText.setText(saved.getLink());
                     renderFolders(folders, selected);
@@ -129,7 +146,10 @@ public class SelectIndexFoldersFragment extends BaseFragment {
                     message = e.getClass().getSimpleName();
                 }
                 String finalMessage = "Could not load folders: " + message;
-                mActivity.runOnUiThread(() -> showError(finalMessage));
+                if (generation != loadGeneration) return;
+                mActivity.runOnUiThread(() -> {
+                    if (generation == loadGeneration && isAdded()) showError(finalMessage);
+                });
             }
         }, "GdiJsFolderList").start();
     }
@@ -248,5 +268,12 @@ public class SelectIndexFoldersFragment extends BaseFragment {
         statusText.setText(message);
         saveButton.setEnabled(false);
         cancelButton.setEnabled(true);
+        retryButton.setVisibility(View.VISIBLE);
+    }
+
+    @Override
+    public void onDestroyView() {
+        loadGeneration++;
+        super.onDestroyView();
     }
 }
