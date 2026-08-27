@@ -303,6 +303,7 @@ public class EpisodeDetailsFragment extends BaseFragment {
                     addToLastPlayed();
                     Intent intent = new Intent(Intent.ACTION_VIEW , Uri.parse(largestFile.getUrlString()));
                     intent.setDataAndType(Uri.parse(largestFile.getUrlString()) , "video/*");
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     startActivity(intent);
                 } else {
                     //Play video
