@@ -327,7 +327,7 @@ public class EpisodeDetailsFragment extends BaseFragment {
         for (Episode file : episodeFileList) {
             if (file == null || file.getUrlString() == null || file.getUrlString().trim().isEmpty()) continue;
             urls.add(file.getUrlString());
-            labels.add(buildQualityLabel(file.getFileName(), urls.size()));
+            labels.add(buildQualityLabel(file.getFileName(), file.getUrlString(), urls.size()));
         }
         if (urls.size() < 2) return;
 
@@ -335,7 +335,7 @@ public class EpisodeDetailsFragment extends BaseFragment {
         intent.putExtra(PlayerActivity.EXTRA_QUALITY_LABELS, labels.toArray(new String[0]));
     }
 
-    private String buildQualityLabel(String fileName, int sourceNumber) {
+    private String buildQualityLabel(String fileName, String url, int sourceNumber) {
         String quality = fileName == null ? null : MovieQualityExtractor.extractQualtiy(fileName);
         String lower = fileName == null ? "" : fileName.toLowerCase(Locale.US);
         String codec = "";
@@ -344,8 +344,11 @@ public class EpisodeDetailsFragment extends BaseFragment {
         } else if (lower.contains("x264") || lower.contains("h264") || lower.contains("h.264") || lower.contains("avc")) {
             codec = " • H.264";
         }
-        if (quality != null && !quality.trim().isEmpty()) return quality + codec;
-        return "Source " + sourceNumber + codec;
+        String source = "";
+        if (url != null && url.startsWith("content://")) source = " • Drive";
+        else if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) source = " • GDI";
+        if (quality != null && !quality.trim().isEmpty()) return quality + codec + source;
+        return "Source " + sourceNumber + codec + source;
     }
 
     private void addToLastPlayed() {
