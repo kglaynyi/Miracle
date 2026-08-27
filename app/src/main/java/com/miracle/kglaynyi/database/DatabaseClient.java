@@ -3,8 +3,18 @@ package com.miracle.kglaynyi.database;
 import android.content.Context;
 
 import androidx.room.Room;
+import androidx.room.migration.Migration;
+import androidx.sqlite.db.SupportSQLiteDatabase;
 
 public class DatabaseClient {
+
+    private static final Migration MIGRATION_31_32 = new Migration(31, 32) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            database.execSQL("ALTER TABLE Movie ADD COLUMN folder_path TEXT NOT NULL DEFAULT ''");
+            database.execSQL("ALTER TABLE Episode ADD COLUMN folder_path TEXT NOT NULL DEFAULT ''");
+        }
+    };
 
     private Context mCtx;
     private static DatabaseClient mInstance;
@@ -17,7 +27,9 @@ public class DatabaseClient {
 
         //creating the app database with Room database builder
         //MyToDos is the name of the database
-        appDatabase = Room.databaseBuilder(mCtx, AppDatabase.class, "MyToDos").build();
+        appDatabase = Room.databaseBuilder(mCtx, AppDatabase.class, "MyToDos")
+                .addMigrations(MIGRATION_31_32)
+                .build();
     }
 
     public static synchronized DatabaseClient getInstance(Context mCtx) {
