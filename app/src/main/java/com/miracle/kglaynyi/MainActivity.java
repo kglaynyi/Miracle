@@ -4,16 +4,10 @@ import static com.miracle.kglaynyi.utils.UpdateUtils.checkForUpdates;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.View;
-import android.view.ViewGroup;
-import android.view.ViewOutlineProvider;
-import android.view.WindowManager;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.room.Room;
@@ -28,14 +22,11 @@ import com.miracle.kglaynyi.fragments.HomeFragment;
 import com.miracle.kglaynyi.fragments.LibraryFragment;
 import com.miracle.kglaynyi.fragments.SearchFragment;
 import com.miracle.kglaynyi.fragments.SettingsFragment;
-import com.miracle.kglaynyi.utils.RefreshWorker;
 import com.miracle.kglaynyi.utils.IndexUtils;
+import com.miracle.kglaynyi.utils.RefreshWorker;
 
 import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
-
-import eightbitlab.com.blurview.BlurView;
-import eightbitlab.com.blurview.RenderScriptBlur;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -47,10 +38,6 @@ public class MainActivity extends AppCompatActivity {
     LibraryFragment libraryFragment = new LibraryFragment();
     SettingsFragment settingsFragment = new SettingsFragment();
 
-    BlurView blurView;
-    ViewGroup rootView;
-    View decorView;
-
     public static Context context;
 
     @Override
@@ -60,12 +47,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         context = getApplicationContext();
 
-        initWidgets();
+        bottomNavigationView = findViewById(R.id.bottom_navigation);
         setUpBottomNavigationView();
 
-        getSupportFragmentManager().beginTransaction().replace(R.id.container, homeFragment).commit();
-
         if (savedInstanceState == null) {
+            getSupportFragmentManager().beginTransaction()
+                    .replace(R.id.container, homeFragment)
+                    .commit();
+
             new Handler(Looper.getMainLooper()).postDelayed(
                     () -> IndexUtils.refreshEnabledIndexesOnStartup(getApplicationContext()),
                     750L);
@@ -73,32 +62,23 @@ public class MainActivity extends AppCompatActivity {
 
         checkForUpdates(this);
 
-        AppDatabase db = Room.databaseBuilder(getApplicationContext(),
-                        AppDatabase.class, "MyToDos")
-                .build();
+        Room.databaseBuilder(getApplicationContext(),
+                AppDatabase.class, "MyToDos").build();
 
-        SharedPreferences sharedPreferences = getSharedPreferences("Settings", Context.MODE_PRIVATE);
+        SharedPreferences sharedPreferences =
+                getSharedPreferences("Settings", Context.MODE_PRIVATE);
         boolean savedREF = sharedPreferences.getBoolean("REFRESH_SETTING", false);
         int savedTime = sharedPreferences.getInt("REFRESH_TIME", 0);
-        if (savedREF) {
-            scheduleWork(savedTime, 0);
-        }
+        if (savedREF) scheduleWork(savedTime, 0);
     }
 
     @Override
     public void onBackPressed() {
-        if (getSupportFragmentManager().getBackStackEntryCount() > 0)
+        if (getSupportFragmentManager().getBackStackEntryCount() > 0) {
             getSupportFragmentManager().popBackStackImmediate();
-        else super.onBackPressed();
-    }
-
-    private void initWidgets() {
-        blurView = findViewById(R.id.blurView);
-        decorView = getWindow().getDecorView();
-        rootView = decorView.findViewById(android.R.id.content);
-        bottomNavigationView = findViewById(R.id.bottom_navigation);
-
-        blurBottom();
+        } else {
+            super.onBackPressed();
+        }
     }
 
     private void setUpBottomNavigationView() {
@@ -109,30 +89,29 @@ public class MainActivity extends AppCompatActivity {
 
         bottomNavigationView.setOnItemSelectedListener(item -> {
             if (item.getItemId() == R.id.homeFragment) {
-                getSupportFragmentManager()
-                        .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+                getSupportFragmentManager().beginTransaction()
+                        .setCustomAnimations(R.anim.fade_in, R.anim.fade_out)
                         .replace(R.id.container, homeFragment)
                         .commit();
                 return true;
-            } else if (item.getItemId() == R.id.searchFragment) {
-                getSupportFragmentManager()
-                        .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+            }
+            if (item.getItemId() == R.id.searchFragment) {
+                getSupportFragmentManager().beginTransaction()
+                        .setCustomAnimations(R.anim.fade_in, R.anim.fade_out)
                         .replace(R.id.container, searchFragment)
                         .commit();
                 return true;
-            } else if (item.getItemId() == R.id.libraryFragment) {
-                getSupportFragmentManager()
-                        .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+            }
+            if (item.getItemId() == R.id.libraryFragment) {
+                getSupportFragmentManager().beginTransaction()
+                        .setCustomAnimations(R.anim.fade_in, R.anim.fade_out)
                         .replace(R.id.container, libraryFragment)
                         .commit();
                 return true;
-            } else if (item.getItemId() == R.id.settingsFragment) {
-                getSupportFragmentManager()
-                        .beginTransaction()
-                        .setCustomAnimations(R.anim.from_right, R.anim.to_left, R.anim.from_left, R.anim.to_right)
+            }
+            if (item.getItemId() == R.id.settingsFragment) {
+                getSupportFragmentManager().beginTransaction()
+                        .setCustomAnimations(R.anim.fade_in, R.anim.fade_out)
                         .replace(R.id.container, settingsFragment)
                         .commit();
                 return true;
@@ -141,36 +120,13 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void blurBottom() {
-        if (blurView == null || rootView == null) {
-            Log.w(TAG, "Blur view unavailable; continuing without blur");
-            return;
-        }
-
-        try {
-            getWindow().setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
-            getWindow().setStatusBarColor(Color.TRANSPARENT);
-            final float radius = 12f;
-            final Drawable windowBackground = getWindow().getDecorView().getBackground();
-
-            blurView.setupWith(rootView, new RenderScriptBlur(this))
-                    .setFrameClearDrawable(windowBackground)
-                    .setBlurRadius(radius);
-            blurView.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
-            blurView.setClipToOutline(true);
-        } catch (Throwable t) {
-            Log.w(TAG, "Blur is not supported on this device; disabling it", t);
-            blurView.setVisibility(View.GONE);
-        }
-    }
-
     private void scheduleWork(int hour, int minute) {
         Calendar calendar = Calendar.getInstance();
         long nowMillis = calendar.getTimeInMillis();
 
         if (calendar.get(Calendar.HOUR_OF_DAY) > hour ||
-                (calendar.get(Calendar.HOUR_OF_DAY) == hour && calendar.get(Calendar.MINUTE) + 1 >= minute)) {
+                (calendar.get(Calendar.HOUR_OF_DAY) == hour
+                        && calendar.get(Calendar.MINUTE) + 1 >= minute)) {
             calendar.add(Calendar.DAY_OF_MONTH, 1);
         }
 
@@ -180,15 +136,16 @@ public class MainActivity extends AppCompatActivity {
         calendar.set(Calendar.MILLISECOND, 0);
         long diff = calendar.getTimeInMillis() - nowMillis;
 
-        WorkManager mWorkManager = WorkManager.getInstance(context);
+        WorkManager workManager = WorkManager.getInstance(context);
         Constraints constraints = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
-        mWorkManager.cancelAllWork();
-        OneTimeWorkRequest mRequest = new OneTimeWorkRequest.Builder(RefreshWorker.class)
+        workManager.cancelAllWork();
+
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(RefreshWorker.class)
                 .setConstraints(constraints)
                 .setInitialDelay(diff, TimeUnit.MILLISECONDS)
                 .build();
-        mWorkManager.enqueue(mRequest);
+        workManager.enqueue(request);
     }
 }
