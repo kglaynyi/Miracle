@@ -23,6 +23,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.net.SocketTimeoutException;
 import java.net.ConnectException;
@@ -224,7 +225,8 @@ public final class GdiJsIndexClient {
     public static int scanSelectedFolders(String rawBaseUrl, String username, String password,
                                           boolean tvShows, int indexId, List<String> selectedFolders,
                                           ProgressListener listener) throws Exception {
-        if (selectedFolders == null || selectedFolders.isEmpty()) {
+        List<String> roots = normalizeSelectedFolders(selectedFolders);
+        if (roots.isEmpty()) {
             throw new IOException("No folders selected. Choose at least one folder first.");
         }
 
@@ -236,31 +238,175 @@ public final class GdiJsIndexClient {
         if (!session.success) throw new IOException(session.message);
 
         String apiRoot = getDefaultApiRoot(baseUrl);
-        Set<String> visitedFolders = new HashSet<>();
-        Set<String> seenIds = new HashSet<>();
+        String signature = selectionSignature(roots);
+        ScanCheckpointStore.SessionState checkpoint =
+                ScanCheckpointStore.load(context, indexId, signature);
+
         Map<String, CachedEntry> cache = buildScanCache(indexId);
         int[] stats = new int[]{0, 0, 0, 0, 0};
+        int startRoot = 0;
 
-        // Root selection already includes every subfolder, so ignore any other
-        // selected paths in that case.
-        if (selectedFolders.contains("/")) {
-            discoverAndProcessFolder(apiRoot, baseUrl, session.cookie, visitedFolders,
-                    seenIds, cache, stats, indexId, tvShows, listener);
-        } else {
-            for (String selectedPath : selectedFolders) {
-                if (selectedPath == null || selectedPath.trim().isEmpty()) continue;
-                String folderUrl = buildFolderUrl(apiRoot, selectedPath);
-                discoverAndProcessFolder(folderUrl, baseUrl, session.cookie, visitedFolders,
-                        seenIds, cache, stats, indexId, tvShows, listener);
-            }
+        if (checkpoint != null) {
+            stats[0] = checkpoint.folders;
+            stats[1] = checkpoint.files;
+            stats[2] = checkpoint.videos;
+            stats[3] = checkpoint.handled;
+            stats[4] = checkpoint.cached;
+            startRoot = Math.max(0, Math.min(checkpoint.selectedRootIndex, roots.size() - 1));
+            emit(listener, Progress.status("Resuming scan • " + stats[3]
+                            + " videos already processed", -1,
+                    stats[3], stats[2], 0, stats[0], stats[1], stats[2]));
         }
 
-        pruneMissingCachedMedia(cache, seenIds);
+        for (int rootIndex = startRoot; rootIndex < roots.size(); rootIndex++) {
+            String selectedPath = roots.get(rootIndex);
+            String selectedUrl = buildFolderUrl(apiRoot, selectedPath);
+
+            if (checkpoint == null
+                    || checkpoint.selectedRootIndex != rootIndex
+                    || checkpoint.selectedRootPath == null
+                    || !checkpoint.selectedRootPath.equals(selectedPath)) {
+                checkpoint = new ScanCheckpointStore.SessionState();
+                checkpoint.selectionSignature = signature;
+                checkpoint.selectedRootIndex = rootIndex;
+                checkpoint.selectedRootPath = selectedPath;
+                checkpoint.folders = stats[0];
+                checkpoint.files = stats[1];
+                checkpoint.videos = stats[2];
+                checkpoint.handled = stats[3];
+                checkpoint.cached = stats[4];
+                checkpoint.queue.add(new ScanCheckpointStore.FolderCursor(selectedUrl, "", 0));
+                ScanCheckpointStore.save(context, indexId, checkpoint);
+            } else if (checkpoint.queue.isEmpty()) {
+                checkpoint.queue.add(new ScanCheckpointStore.FolderCursor(selectedUrl, "", 0));
+            }
+
+            Set<String> completed = new HashSet<>(checkpoint.completedFolders);
+            Set<String> knownFolders = new HashSet<>(completed);
+            for (ScanCheckpointStore.FolderCursor cursor : checkpoint.queue) {
+                if (cursor != null && cursor.folderUrl != null) knownFolders.add(cursor.folderUrl);
+            }
+
+            while (!checkpoint.queue.isEmpty()) {
+                ScanCheckpointStore.FolderCursor cursor = checkpoint.queue.get(0);
+                if (cursor == null || cursor.folderUrl == null || cursor.folderUrl.trim().isEmpty()) {
+                    checkpoint.queue.remove(0);
+                    continue;
+                }
+
+                if (stats[0] >= MAX_FOLDERS) {
+                    throw new IOException("Index contains too many folders to scan safely");
+                }
+
+                boolean firstPageOfFolder =
+                        (cursor.pageToken == null || cursor.pageToken.isEmpty())
+                                && cursor.pageIndex == 0
+                                && !completed.contains(cursor.folderUrl);
+                if (firstPageOfFolder) stats[0]++;
+
+                ResFormat pageResult = fetchPageWithRetry(
+                        cursor.folderUrl, session.cookie,
+                        cursor.pageToken == null ? "" : cursor.pageToken,
+                        cursor.pageIndex, stats, listener);
+                if (pageResult == null || pageResult.getData() == null) {
+                    throw new IOException("GDI-JS returned an invalid page while scanning");
+                }
+
+                List<File> files = pageResult.getData().getFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        if (file == null) continue;
+
+                        if (isFolder(file)) {
+                            String child = appendPath(cursor.folderUrl, file.getName(), true);
+                            if (knownFolders.add(child)) {
+                                checkpoint.queue.add(
+                                        new ScanCheckpointStore.FolderCursor(child, "", 0));
+                            }
+                            continue;
+                        }
+
+                        stats[1]++;
+                        if (!isVideoFile(file)) continue;
+
+                        stats[2]++;
+                        boolean reused = processVideo(
+                                baseUrl, cursor.folderUrl, file,
+                                tvShows, indexId, cache);
+                        stats[3]++;
+                        if (reused) stats[4]++;
+
+                        emit(listener, Progress.status(
+                                "Scanning " + selectedPath + " • "
+                                        + stats[0] + " folders • "
+                                        + stats[1] + " files • "
+                                        + stats[2] + " videos • "
+                                        + stats[4] + " cached",
+                                -1, stats[3], stats[2], 0,
+                                stats[0], stats[1], stats[2]));
+                    }
+                }
+
+                String next = pageResult.getNextPageToken();
+                if (next == null || next.trim().isEmpty()) {
+                    checkpoint.queue.remove(0);
+                    if (completed.add(cursor.folderUrl)) {
+                        checkpoint.completedFolders.add(cursor.folderUrl);
+                    }
+                } else {
+                    cursor.pageToken = next;
+                    cursor.pageIndex++;
+                }
+
+                checkpoint.folders = stats[0];
+                checkpoint.files = stats[1];
+                checkpoint.videos = stats[2];
+                checkpoint.handled = stats[3];
+                checkpoint.cached = stats[4];
+                ScanCheckpointStore.save(context, indexId, checkpoint);
+            }
+
+            checkpoint.selectedRootIndex = rootIndex + 1;
+            checkpoint.selectedRootPath = rootIndex + 1 < roots.size()
+                    ? roots.get(rootIndex + 1) : "";
+            checkpoint.completedFolders.clear();
+            ScanCheckpointStore.save(context, indexId, checkpoint);
+        }
+
+        ScanCheckpointStore.clear(context, indexId);
         int total = stats[2];
         emit(listener, Progress.done("Done • " + total + " videos • "
                         + stats[4] + " reused from cache",
                 total, stats[0], stats[1]));
         return total;
+    }
+
+    private static List<String> normalizeSelectedFolders(List<String> selectedFolders) {
+        List<String> result = new ArrayList<>();
+        if (selectedFolders == null) return result;
+        if (selectedFolders.contains("/")) {
+            result.add("/");
+            return result;
+        }
+        Set<String> unique = new HashSet<>();
+        for (String value : selectedFolders) {
+            if (value == null) continue;
+            String clean = value.trim();
+            while (clean.startsWith("/")) clean = clean.substring(1);
+            while (clean.endsWith("/")) clean = clean.substring(0, clean.length() - 1);
+            if (!clean.isEmpty() && unique.add(clean)) result.add(clean);
+        }
+        Collections.sort(result, String.CASE_INSENSITIVE_ORDER);
+        return result;
+    }
+
+    private static String selectionSignature(List<String> roots) {
+        StringBuilder out = new StringBuilder();
+        for (String root : roots) {
+            if (out.length() > 0) out.append("\n");
+            out.append(root == null ? "" : root);
+        }
+        return out.toString();
     }
 
     public static List<FolderOption> listFolders(String rawBaseUrl, String username,
@@ -641,6 +787,7 @@ public final class GdiJsIndexClient {
     movie.setUrlString(resolveFileUrl(folderUrl, folderUrl, file));
     movie.setGd_id(gdId == null ? "" : gdId);
     movie.setIndex_id(indexId);
+    movie.setFolder_path(relativeFolderPath(folderUrl));
     String title = fallbackMovieTitle(file.getName());
     movie.setTitle(title);
     movie.setOriginal_title(title);
@@ -653,6 +800,7 @@ public final class GdiJsIndexClient {
         String id = file.getId();
         boolean treatAsTv = shouldTreatAsTv(folderUrl, file.getName(), tvShows);
         String streamUrl = resolveFileUrl(rootUrl, folderUrl, file);
+        String folderPath = relativeFolderPath(folderUrl);
 
         if (id != null && !id.trim().isEmpty()) {
             // GDI-JS signed download URLs can change between scans. The stable Drive
@@ -678,11 +826,11 @@ public final class GdiJsIndexClient {
                 if (treatAsTv) {
                     DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
                             .updateSourceMetadata(id, streamUrl, file.getName(), file.getSize(),
-                                    file.getMimeType(), file.getModifiedTime());
+                                    file.getMimeType(), file.getModifiedTime(), folderPath);
                 } else {
                     DatabaseClient.getInstance(context).getAppDatabase().movieDao()
                             .updateSourceMetadata(id, streamUrl, file.getName(), file.getSize(),
-                                    file.getMimeType(), file.getModifiedTime());
+                                    file.getMimeType(), file.getModifiedTime(), folderPath);
                 }
                 return true;
             }
@@ -710,6 +858,7 @@ public final class GdiJsIndexClient {
             episode.setUrlString(streamUrl);
             episode.setGd_id(id == null ? "" : id);
             episode.setIndex_id(indexId);
+            episode.setFolder_path(folderPath);
             sendGetTVShow(episode);
         } else {
             Movie movie = new Movie();
@@ -720,6 +869,7 @@ public final class GdiJsIndexClient {
             movie.setUrlString(streamUrl);
             movie.setGd_id(id == null ? "" : id);
             movie.setIndex_id(indexId);
+            movie.setFolder_path(folderPath);
 
             if (isTmdbConfigured()) {
                 sendGet2(movie);
@@ -850,6 +1000,20 @@ public final class GdiJsIndexClient {
 
     private static boolean isFolder(File file) {
         return "application/vnd.google-apps.folder".equals(file.getMimeType());
+    }
+
+    private static String relativeFolderPath(String folderUrl) {
+        if (folderUrl == null || folderUrl.trim().isEmpty()) return "/";
+        int marker = folderUrl.indexOf(DEFAULT_DRIVE_PREFIX);
+        if (marker < 0) return "/";
+        String value = folderUrl.substring(marker + DEFAULT_DRIVE_PREFIX.length());
+        try {
+            value = URLDecoder.decode(value, "UTF-8");
+        } catch (Exception ignored) {}
+        value = value.replace('\\', '/').trim();
+        while (value.startsWith("/")) value = value.substring(1);
+        while (value.endsWith("/")) value = value.substring(0, value.length() - 1);
+        return value.isEmpty() ? "/" : value;
     }
 
     private static String resolveFileUrl(String rootUrl, String folderUrl, File file) {
