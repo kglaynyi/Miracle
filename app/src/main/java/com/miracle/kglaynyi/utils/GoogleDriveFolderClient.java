@@ -71,7 +71,8 @@ public final class GoogleDriveFolderClient {
         Set<String> seen = new HashSet<>();
         Stats stats = new Stats();
 
-        scanFolder(context, resolver, treeUri, rootId, "", indexId,
+        String rootPath = "/" + getFolderDisplayName(context, treeUri);
+        scanFolder(context, resolver, treeUri, rootId, rootPath, indexId,
                 cache, seen, stats, listener);
 
         pruneMissing(context, cache, seen);
