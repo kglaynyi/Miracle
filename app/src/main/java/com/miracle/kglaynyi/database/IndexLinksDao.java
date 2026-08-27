@@ -39,4 +39,10 @@ public interface IndexLinksDao {
     @Query("UPDATE IndexLink SET folderType=:folderType WHERE id=:indexId")
     void updateFolderType(int indexId, String folderType);
 
+    @Query("UPDATE IndexLink SET selectedFoldersJson=:selectedFoldersJson WHERE id=:indexId")
+    void updateSelectedFolders(int indexId, String selectedFoldersJson);
+
+    @Query("DELETE FROM IndexLink WHERE indexType != 'GDI-JS'")
+    void deleteUnsupportedSources();
+
 }
