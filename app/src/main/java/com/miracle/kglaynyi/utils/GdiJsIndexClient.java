@@ -508,6 +508,19 @@ public final class GdiJsIndexClient {
         boolean treatAsTv = shouldTreatAsTv(folderUrl, file.getName(), tvShows);
 
         if (id != null && !id.trim().isEmpty()) {
+            // GDI-JS signed download URLs can change between scans. The stable Drive
+            // id is the source identity; remove older rows for the same file that
+            // were created before gd_id-based caching existed.
+            if (file.getName() != null && file.getSize() != null) {
+                if (treatAsTv) {
+                    DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
+                            .deleteDuplicateSources(indexId, file.getName(), file.getSize(), id);
+                } else {
+                    DatabaseClient.getInstance(context).getAppDatabase().movieDao()
+                            .deleteDuplicateSources(indexId, file.getName(), file.getSize(), id);
+                }
+            }
+
             CachedEntry cached = cache.get(id);
             if (cached != null && cached.tv == treatAsTv && !isRemoteNewer(file.getModifiedTime(), cached.modifiedTime)) {
                 return true;
