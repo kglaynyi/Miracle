@@ -17,18 +17,27 @@ public final class ResumeUtils {
     private static final String POSITION_PREFIX = "resume_";
     private static final String URL_PREFIX = "resume_url_";
     private static final String UPDATED_PREFIX = "resume_updated_";
+    private static final String DURATION_PREFIX = "resume_duration_";
 
     private ResumeUtils() {}
 
     public static final class Entry {
         public final String url;
         public final long positionMs;
+        public final long durationMs;
         public final long updatedAt;
 
-        Entry(String url, long positionMs, long updatedAt) {
+        Entry(String url, long positionMs, long durationMs, long updatedAt) {
             this.url = url;
             this.positionMs = positionMs;
+            this.durationMs = durationMs;
             this.updatedAt = updatedAt;
+        }
+
+        public int progressPercent() {
+            if (durationMs <= 0) return 0;
+            return Math.max(0, Math.min(100,
+                    Math.round(positionMs * 100f / durationMs)));
         }
     }
 
@@ -39,11 +48,16 @@ public final class ResumeUtils {
     }
 
     public static void save(Context context, String url, long positionMs) {
+        save(context, url, positionMs, 0L);
+    }
+
+    public static void save(Context context, String url, long positionMs, long durationMs) {
         if (context == null || url == null || url.trim().isEmpty()) return;
         String suffix = suffix(url);
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putLong(POSITION_PREFIX + suffix, positionMs)
+                .putLong(DURATION_PREFIX + suffix, Math.max(0L, durationMs))
                 .putString(URL_PREFIX + suffix, url)
                 .putLong(UPDATED_PREFIX + suffix, System.currentTimeMillis())
                 .apply();
@@ -55,6 +69,7 @@ public final class ResumeUtils {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .remove(POSITION_PREFIX + suffix)
+                .remove(DURATION_PREFIX + suffix)
                 .remove(URL_PREFIX + suffix)
                 .remove(UPDATED_PREFIX + suffix)
                 .apply();
@@ -79,8 +94,9 @@ public final class ResumeUtils {
             long position = prefs.getLong(POSITION_PREFIX + suffix, C.TIME_UNSET);
             if (position == C.TIME_UNSET || position <= 0) continue;
 
+            long duration = prefs.getLong(DURATION_PREFIX + suffix, 0L);
             long updated = prefs.getLong(UPDATED_PREFIX + suffix, 0L);
-            result.add(new Entry(url, position, updated));
+            result.add(new Entry(url, position, duration, updated));
         }
 
         Collections.sort(result, new Comparator<Entry>() {
