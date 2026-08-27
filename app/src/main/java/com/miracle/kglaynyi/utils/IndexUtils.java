@@ -17,10 +17,44 @@ import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class IndexUtils {
 
     private static final Map<Integer, GdiJsIndexClient.Progress> SCAN_PROGRESS = new ConcurrentHashMap<>();
+    private static final AtomicBoolean STARTUP_REFRESH_STARTED = new AtomicBoolean(false);
+
+    public static void refreshEnabledIndexesOnStartup(Context context) {
+        if (context == null || !STARTUP_REFRESH_STARTED.compareAndSet(false, true)) return;
+        Context appContext = context.getApplicationContext();
+
+        new Thread(() -> {
+            List<IndexLink> indexes = DatabaseClient.getInstance(appContext)
+                    .getAppDatabase().indexLinksDao().getAllEnabled();
+            if (indexes == null) return;
+
+            for (IndexLink index : indexes) {
+                if (index == null) continue;
+
+                // Cached rows stay visible. The scanner compares gd_id + modifiedTime
+                // and only reprocesses new or changed files.
+                SCAN_PROGRESS.remove(index.getId());
+                refreshIndex(appContext, index);
+
+                long deadline = System.currentTimeMillis() + 2L * 60L * 60L * 1000L;
+                while (System.currentTimeMillis() < deadline) {
+                    GdiJsIndexClient.Progress progress = SCAN_PROGRESS.get(index.getId());
+                    if (progress != null && progress.finished) break;
+                    try {
+                        Thread.sleep(350L);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+        }, "MiracleStartupRefresh").start();
+    }
 
     public static GdiJsIndexClient.Progress getScanProgress(int indexId) {
         return SCAN_PROGRESS.get(indexId);
