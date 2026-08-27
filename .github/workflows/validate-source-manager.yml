@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - '.github/workflows/validate-source-manager.yml'
+      - 'app/**'
   workflow_dispatch:
 
 jobs:
