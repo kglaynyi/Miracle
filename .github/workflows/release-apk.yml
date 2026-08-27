@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Fixes Home media rows disappearing after switching tabs by reattaching cached adapters whenever the Home view is recreated. Background GDI-JS scans now keep existing Home content visible while the scan indicator runs. Includes the v1.0.26 fast top-level folder picker and earlier duplicate-source and punch-hole fixes."
+          NOTES="Makes ExoPlayer controls fully transparent over video by removing the full-screen dim layer and bottom control gradients. Fit, Quality, and subtitle-size controls now follow ExoPlayer controller visibility and auto-hide after 3 seconds instead of remaining permanently visible. Includes the Home tab lifecycle, fast folder picker, duplicate-source, and punch-hole fixes."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
             gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
