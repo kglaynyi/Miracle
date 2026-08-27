@@ -480,8 +480,11 @@ public class PlayerActivity extends AppCompatActivity
         final long position = Math.max(0, resumeAt);
         vlcPlayer.setEventListener(event -> {
             if (event.type == MediaPlayer.Event.Playing) {
-                if (position >= MIN_RESUME_MS) {
+                if (position > 0) {
                     try { vlcPlayer.setTime(position); } catch (Exception ignored) {}
+                }
+                if (!startAutoPlay) {
+                    try { vlcPlayer.pause(); } catch (Exception ignored) {}
                 }
                 runOnUiThread(() -> {
                     refreshVlcTrackControls();
@@ -632,7 +635,7 @@ public class PlayerActivity extends AppCompatActivity
         if (vlcViewMode != null) vlcViewMode.setText("Screen");
         if (exoViewMode != null) exoViewMode.setText("Screen");
 
-        String qualityLabel = getCurrentQualityLabel();
+        String qualityLabel = getQualityButtonLabel();
         if (vlcQuality != null) vlcQuality.setText(qualityLabel);
         if (exoQuality != null) exoQuality.setText(qualityLabel);
 
@@ -909,6 +912,19 @@ public class PlayerActivity extends AppCompatActivity
         return -1;
     }
 
+    private String getQualityButtonLabel() {
+        String label = getCurrentQualityLabel();
+        if (label == null || label.trim().isEmpty()) return "Quality";
+        String lower = label.toLowerCase(Locale.US);
+        if (lower.contains("2160") || lower.contains("4k")) return "4K";
+        if (lower.contains("1440")) return "1440p";
+        if (lower.contains("1080")) return "1080p";
+        if (lower.contains("720")) return "720p";
+        if (lower.contains("480")) return "480p";
+        if (selectedQualityHeight > 0) return selectedQualityHeight + "p";
+        return label.length() > 12 ? "Quality" : label;
+    }
+
     private String getCurrentQualityLabel() {
         int index = findCurrentSourceIndex();
         if (index >= 0 && qualityLabels != null && index < qualityLabels.length) {
@@ -936,6 +952,9 @@ public class PlayerActivity extends AppCompatActivity
 
         currentUrl = newUrl;
         getIntent().putExtra("url", newUrl);
+        selectedQualityHeight = 0;
+        getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .edit().putInt(QUALITY_HEIGHT_KEY, 0).apply();
         startItemIndex = 0;
         startPosition = position;
         startAutoPlay = playWhenReady;
