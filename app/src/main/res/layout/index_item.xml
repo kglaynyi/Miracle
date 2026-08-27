@@ -169,12 +169,28 @@
                 android:layout_centerVertical="true"
                 android:layout_gravity="center_vertical"
                 android:layout_marginStart="20dp"
-                android:layout_toStartOf="@id/refreshButton"
+                android:layout_toStartOf="@id/foldersButton"
                 android:fontFamily="@font/jost_medium"
                 android:text="69 Movies"
                 android:textColor="@color/white"
                 android:textSize="20sp" />
 
+
+            <Button
+                android:id="@+id/foldersButton"
+                android:layout_width="92dp"
+                android:layout_height="36dp"
+                android:layout_centerVertical="true"
+                android:layout_marginEnd="6dp"
+                android:layout_toStartOf="@id/refreshButton"
+                android:background="@drawable/rounded_corner_labels"
+                android:fontFamily="@font/jost_regular"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="Folders"
+                android:textAllCaps="false"
+                android:textColor="@color/download_button_bg_color"
+                android:textSize="13sp" />
 
             <ImageButton
                 android:id="@+id/refreshButton"
