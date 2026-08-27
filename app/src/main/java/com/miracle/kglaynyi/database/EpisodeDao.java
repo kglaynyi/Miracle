@@ -29,7 +29,7 @@ public interface EpisodeDao {
     @Query("SELECT * FROM Episode WHERE id=:id and disabled =0")
     List<Episode> byEpisodeId(int id);
 
-    @Query("SELECT * FROM Episode WHERE id=:id and disabled =0 ORDER BY cast(size as unsigned) desc limit 1")
+    @Query("SELECT * FROM Episode WHERE id=:id and disabled =0 ORDER BY cast(size as unsigned) desc, (COALESCE(gd_id,'') != '') DESC, idForDB DESC limit 1")
     Episode byEpisodeIdLargest(int id);
 
     @Query("UPDATE Episode SET played = 1 WHERE id = :episodeId and disabled =0")
