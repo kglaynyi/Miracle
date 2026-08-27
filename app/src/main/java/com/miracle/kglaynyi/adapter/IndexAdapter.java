@@ -26,6 +26,7 @@ import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.model.IndexLink;
 import com.miracle.kglaynyi.fragments.SelectIndexFoldersFragment;
 import com.miracle.kglaynyi.utils.IndexFolderSelectionUtils;
+import com.miracle.kglaynyi.utils.ScanCheckpointStore;
 
 import java.util.List;
 
@@ -153,7 +154,11 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
                 holder.noOfMedia.setText(progress.message);
                 holder.refreshIndex.setEnabled(true);
             } else {
-                holder.noOfMedia.setText(getNoOfMedia(holder.itemView.getContext(), indexLink) + " " + indexLink.getFolderType());
+                int count = getNoOfMedia(holder.itemView.getContext(), indexLink);
+                boolean resumable = ScanCheckpointStore.hasCheckpoint(
+                        holder.itemView.getContext(), indexLink.getId());
+                holder.noOfMedia.setText(count + " media"
+                        + (resumable ? " • Resume available" : " • Cached"));
                 holder.refreshIndex.setEnabled(true);
             }
         }
