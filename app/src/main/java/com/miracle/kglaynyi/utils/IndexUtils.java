@@ -234,13 +234,18 @@ public class IndexUtils {
                 }
 
                 String json = IndexFolderSelectionUtils.encode(safeFolders);
+                List<String> previousFolders =
+                        IndexFolderSelectionUtils.parse(indexLink.getSelectedFoldersJson());
+                boolean selectionChanged =
+                        !sameFolderSelection(previousFolders, safeFolders);
 
-                // Never clear the index cache when folder choices change. Remove
-                // only rows that are known to belong to folders no longer selected.
-                // Rows from older database versions without folder_path are kept
-                // and naturally deduplicated as selected folders are refreshed.
-                cleanupDeselectedFolderMedia(context, indexLink.getId(), safeFolders);
-                ScanCheckpointStore.clear(context, indexLink.getId());
+                // Never clear media cache. Only a genuine folder-selection change
+                // invalidates the scan traversal checkpoint. Re-saving the same
+                // folders after a force stop continues from the saved page.
+                if (selectionChanged) {
+                    cleanupDeselectedFolderMedia(context, indexLink.getId(), safeFolders);
+                    ScanCheckpointStore.clear(context, indexLink.getId());
+                }
                 DatabaseClient.getInstance(context).getAppDatabase().indexLinksDao()
                         .updateSelectedFolders(indexLink.getId(), json);
                 indexLink.setSelectedFoldersJson(json);
@@ -261,6 +266,20 @@ public class IndexUtils {
                         GdiJsIndexClient.Progress.failed("Folder scan failed • " + message));
             }
         }, "MiracleFolderSelectionScan").start();
+    }
+
+    private static boolean sameFolderSelection(
+            List<String> left, List<String> right) {
+        if (left == null) return false;
+        java.util.Set<String> a = new java.util.HashSet<>();
+        java.util.Set<String> b = new java.util.HashSet<>();
+        for (String value : left) {
+            if (value != null) a.add(value.trim().toLowerCase(java.util.Locale.US));
+        }
+        for (String value : right) {
+            if (value != null) b.add(value.trim().toLowerCase(java.util.Locale.US));
+        }
+        return a.equals(b);
     }
 
     private static void cleanupDeselectedFolderMedia(
