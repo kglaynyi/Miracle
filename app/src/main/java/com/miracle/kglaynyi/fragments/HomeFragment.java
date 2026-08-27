@@ -138,6 +138,7 @@ public class HomeFragment extends BaseFragment {
         super.onResume();
         if (getView() == null) return;
         refreshHomeSections();
+        sawStartupScan = true;
         startupRefreshHandler.removeCallbacks(startupRefreshObserver);
         startupRefreshHandler.postDelayed(startupRefreshObserver, 1200L);
     }
