@@ -54,6 +54,7 @@ import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.utils.ResumeUtils;
+import com.miracle.kglaynyi.utils.PlaybackHistoryUtils;
 
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
@@ -162,6 +163,7 @@ public class PlayerActivity extends AppCompatActivity
     private boolean autoSkipEnabled;
     private boolean introSkipApplied;
     private boolean endSkipApplied;
+    private boolean nextEpisodeLaunchStarted;
     private float playbackSpeed = 1.0f;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -828,6 +830,7 @@ public class PlayerActivity extends AppCompatActivity
         }
 
         Uri uri = Uri.parse(currentUrl);
+        PlaybackHistoryUtils.markInProgress(this, resumeKey);
         Log.i("Inside Player", uri.toString());
         mediaItem = MediaItem.fromUri(uri);
 
@@ -954,8 +957,8 @@ public class PlayerActivity extends AppCompatActivity
             } else if (event.type == MediaPlayer.Event.Paused) {
                 runOnUiThread(() -> vlcPlayPause.setText("Play"));
             } else if (event.type == MediaPlayer.Event.EndReached) {
-                clearResume();
                 runOnUiThread(() -> {
+                    handlePlaybackEnded();
                     vlcPlayPause.setText("Play");
                     updateVlcProgress();
                 });
@@ -1319,8 +1322,10 @@ public class PlayerActivity extends AppCompatActivity
         long position = getPlaybackPosition();
         long duration = getPlaybackDuration();
 
-        if (position < MIN_RESUME_MS
-                || (duration > 0 && duration - position <= FINISHED_THRESHOLD_MS)) {
+        if (position < MIN_RESUME_MS) {
+            clearResume();
+        } else if (duration > 0 && duration - position <= FINISHED_THRESHOLD_MS) {
+            PlaybackHistoryUtils.markCompleted(this, resumeKey);
             clearResume();
         } else {
             ResumeUtils.saveForMedia(this, resumeKey, currentUrl, position);
@@ -1329,6 +1334,17 @@ public class PlayerActivity extends AppCompatActivity
 
     private void clearResume() {
         ResumeUtils.removeForMedia(this, resumeKey, currentUrl);
+    }
+
+    private void handlePlaybackEnded() {
+        PlaybackHistoryUtils.markCompleted(this, resumeKey);
+        clearResume();
+        if (nextEpisodeLaunchStarted) return;
+        String nextUrl = getIntent().getStringExtra(EXTRA_NEXT_URL);
+        if (nextUrl != null && !nextUrl.trim().isEmpty()) {
+            nextEpisodeLaunchStarted = true;
+            playNextEpisode(nextUrl);
+        }
     }
 
     private boolean isLikelyHevcSource(String url) {
@@ -1498,7 +1514,7 @@ public class PlayerActivity extends AppCompatActivity
     private class PlayerEventListener implements Player.Listener {
         @Override
         public void onPlaybackStateChanged(@Player.State int playbackState) {
-            if (playbackState == Player.STATE_ENDED) clearResume();
+            if (playbackState == Player.STATE_ENDED) handlePlaybackEnded();
             decorView.setSystemUiVisibility(uiOptions);
         }
 
