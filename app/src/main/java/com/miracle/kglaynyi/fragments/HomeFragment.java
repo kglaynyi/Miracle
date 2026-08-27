@@ -2,6 +2,8 @@ package com.miracle.kglaynyi.fragments;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,6 +25,7 @@ import com.miracle.kglaynyi.model.TVShowInfo.Episode;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
 import com.miracle.kglaynyi.player.PlayerActivity;
 import com.miracle.kglaynyi.utils.ResumeUtils;
+import com.miracle.kglaynyi.utils.IndexUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,6 +88,25 @@ public class HomeFragment extends BaseFragment {
     MediaAdapter.OnItemClickListener topRatedShowsListener;
     MediaAdapter.OnItemClickListener newSeasonListener;
 
+    private final Handler startupRefreshHandler = new Handler(Looper.getMainLooper());
+    private boolean sawStartupScan;
+    private final Runnable startupRefreshObserver = new Runnable() {
+        @Override public void run() {
+            if (!isAdded() || getView() == null) return;
+
+            if (IndexUtils.isAnyScanRunning()) {
+                sawStartupScan = true;
+                startupRefreshHandler.postDelayed(this, 1500L);
+                return;
+            }
+
+            if (sawStartupScan) {
+                sawStartupScan = false;
+                refreshHomeSections();
+            }
+        }
+    };
+
 //    List<PairMovies> pairMoviesList;
 //    List<PairTvShows> pairTvShowsList;
 
@@ -102,14 +124,7 @@ public class HomeFragment extends BaseFragment {
         super.onViewCreated(view, savedInstanceState);
 
 
-        loadContinueWatching();
-        loadRecentlyAddedMovies();
-        loadRecentlyReleasedMovies();
-        loadTopRatedMovies();
-        loadLastPlayedMovies();
-        loadWatchlist();
-        loadNewSeason();
-        loadTopRatedShows();
+        refreshHomeSections();
         setOnClickListner();
 
 
@@ -120,17 +135,29 @@ public class HomeFragment extends BaseFragment {
 
     @Override
     public void onResume() {
-    super.onResume();
-    if (getView() == null) return;
-    loadContinueWatching();
-    loadRecentlyAddedMovies();
-    loadRecentlyReleasedMovies();
-    loadTopRatedMovies();
-    loadLastPlayedMovies();
-    loadWatchlist();
-    loadNewSeason();
-    loadTopRatedShows();
-}
+        super.onResume();
+        if (getView() == null) return;
+        refreshHomeSections();
+        startupRefreshHandler.removeCallbacks(startupRefreshObserver);
+        startupRefreshHandler.postDelayed(startupRefreshObserver, 1200L);
+    }
+
+    @Override
+    public void onPause() {
+        startupRefreshHandler.removeCallbacks(startupRefreshObserver);
+        super.onPause();
+    }
+
+    private void refreshHomeSections() {
+        loadContinueWatching();
+        loadRecentlyAddedMovies();
+        loadRecentlyReleasedMovies();
+        loadTopRatedMovies();
+        loadLastPlayedMovies();
+        loadWatchlist();
+        loadNewSeason();
+        loadTopRatedShows();
+    }
 
     private void loadContinueWatching() {
         new Thread(() -> {
