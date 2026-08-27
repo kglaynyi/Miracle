@@ -98,4 +98,7 @@ public interface MovieDao {
     @Query("DELETE FROM Movie WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND COALESCE(gd_id,'') != :keepGdId")
     int deleteDuplicateSources(int indexId, String fileName, String size, String keepGdId);
 
+    @Query("DELETE FROM Movie WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND gd_id=:stableId AND fileidForDB != (SELECT MAX(fileidForDB) FROM Movie WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND gd_id=:stableId)")
+    int deleteRepeatedStableSource(int indexId, String fileName, String size, String stableId);
+
 }
