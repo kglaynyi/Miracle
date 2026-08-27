@@ -12,12 +12,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -36,6 +38,7 @@ import com.google.android.exoplayer2.drm.DefaultDrmSessionManagerProvider;
 import com.google.android.exoplayer2.source.DefaultMediaSourceFactory;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.util.EventLogger;
@@ -61,6 +64,14 @@ public class PlayerActivity extends AppCompatActivity
     private static final long SEEK_STEP_MS = 10_000L;
     private static final long MIN_RESUME_MS = 10_000L;
     private static final long FINISHED_THRESHOLD_MS = 30_000L;
+    private static final String PLAYER_SETTINGS = "Settings";
+    private static final String VIEW_MODE_KEY = "PLAYER_VIEW_MODE";
+
+    private static final int VIEW_FIT = 0;
+    private static final int VIEW_ORIGINAL = 1;
+    private static final int VIEW_FILL = 2;
+    private static final int VIEW_CROP = 3;
+    private static final String[] VIEW_MODE_LABELS = {"Fit", "Original", "Full", "Crop"};
 
     public static final String PREFER_EXTENSION_DECODERS_EXTRA = "prefer_extension_decoders";
 
@@ -83,28 +94,49 @@ public class PlayerActivity extends AppCompatActivity
     private int uiOptions;
     private TextView gestureFeedback;
     private TextView decoderBadge;
-    private View vlcTrackControls;
+
+    private View vlcController;
     private Button vlcAudioTracks;
     private Button vlcSubtitleTracks;
+    private Button vlcPlayPause;
+    private Button vlcViewMode;
+    private Button exoViewMode;
+    private SeekBar vlcSeekBar;
+    private TextView vlcCurrentTime;
+    private TextView vlcTotalTime;
+    private boolean userSeeking;
+
     private Boolean hardwareHevcAvailable;
     private boolean softwareFallbackScheduled;
     private GestureDetector gestureDetector;
     private AudioManager audioManager;
     private int maxVolume;
     private int gestureStartVolume;
+    private int viewMode;
 
     private String currentUrl;
     private final Handler handler = new Handler(Looper.getMainLooper());
+
     private final Runnable hideFeedback = () -> {
         if (gestureFeedback != null) {
             gestureFeedback.animate().alpha(0f).setDuration(160)
                     .withEndAction(() -> gestureFeedback.setVisibility(View.GONE)).start();
         }
     };
+
     private final Runnable periodicResumeSave = new Runnable() {
         @Override public void run() {
             saveResumePosition();
             handler.postDelayed(this, 5000L);
+        }
+    };
+
+    private final Runnable vlcProgressUpdater = new Runnable() {
+        @Override public void run() {
+            updateVlcProgress();
+            if (usingVlc && vlcPlayer != null) {
+                handler.postDelayed(this, 500L);
+            }
         }
     };
 
@@ -129,12 +161,49 @@ public class PlayerActivity extends AppCompatActivity
         vlcVideoLayout = findViewById(R.id.vlc_video_layout);
         gestureFeedback = findViewById(R.id.gesture_feedback);
         decoderBadge = findViewById(R.id.decoder_badge);
-        vlcTrackControls = findViewById(R.id.vlc_track_controls);
+
+        vlcController = findViewById(R.id.vlc_controller);
         vlcAudioTracks = findViewById(R.id.vlc_audio_tracks);
         vlcSubtitleTracks = findViewById(R.id.vlc_subtitle_tracks);
+        vlcPlayPause = findViewById(R.id.vlc_play_pause);
+        vlcViewMode = findViewById(R.id.video_view_mode);
+        exoViewMode = findViewById(R.id.exo_view_mode);
+        vlcSeekBar = findViewById(R.id.vlc_seek_bar);
+        vlcCurrentTime = findViewById(R.id.vlc_current_time);
+        vlcTotalTime = findViewById(R.id.vlc_total_time);
+
+        viewMode = getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .getInt(VIEW_MODE_KEY, VIEW_FIT);
+        if (viewMode < VIEW_FIT || viewMode > VIEW_CROP) viewMode = VIEW_FIT;
+        updateViewModeLabels();
 
         vlcAudioTracks.setOnClickListener(v -> showVlcTrackDialog(false));
         vlcSubtitleTracks.setOnClickListener(v -> showVlcTrackDialog(true));
+        vlcPlayPause.setOnClickListener(v -> toggleVlcPlayback());
+        vlcViewMode.setOnClickListener(v -> cycleViewMode());
+        exoViewMode.setOnClickListener(v -> cycleViewMode());
+
+        vlcSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) return;
+                long duration = getPlaybackDuration();
+                long target = duration > 0 ? (duration * progress / 1000L) : 0L;
+                vlcCurrentTime.setText(formatTime(target));
+            }
+
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {
+                userSeeking = true;
+            }
+
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {
+                long duration = getPlaybackDuration();
+                if (vlcPlayer != null && duration > 0) {
+                    long target = duration * seekBar.getProgress() / 1000L;
+                    try { vlcPlayer.setTime(target); } catch (Exception ignored) {}
+                }
+                userSeeking = false;
+            }
+        });
 
         playerView.setControllerVisibilityListener(this);
         playerView.requestFocus();
@@ -191,12 +260,17 @@ public class PlayerActivity extends AppCompatActivity
         }
         handler.removeCallbacks(periodicResumeSave);
         handler.postDelayed(periodicResumeSave, 5000L);
+        if (usingVlc) {
+            handler.removeCallbacks(vlcProgressUpdater);
+            handler.post(vlcProgressUpdater);
+        }
     }
 
     @Override
     public void onPause() {
         saveResumePosition();
         handler.removeCallbacks(periodicResumeSave);
+        handler.removeCallbacks(vlcProgressUpdater);
         super.onPause();
         if (Build.VERSION.SDK_INT <= 23) {
             playerView.onPause();
@@ -209,6 +283,7 @@ public class PlayerActivity extends AppCompatActivity
     public void onStop() {
         saveResumePosition();
         handler.removeCallbacks(periodicResumeSave);
+        handler.removeCallbacks(vlcProgressUpdater);
         super.onStop();
         if (Build.VERSION.SDK_INT > 23) {
             playerView.onPause();
@@ -288,8 +363,10 @@ public class PlayerActivity extends AppCompatActivity
         playerView.setPlayer(player);
         playerView.setVisibility(View.VISIBLE);
         vlcVideoLayout.setVisibility(View.GONE);
+        vlcController.setVisibility(View.GONE);
         decoderBadge.setVisibility(View.GONE);
-        vlcTrackControls.setVisibility(View.GONE);
+        exoViewMode.setVisibility(View.VISIBLE);
+        applyViewMode();
 
         player.setMediaItem(mediaItem);
         if (startItemIndex != C.INDEX_UNSET && startPosition != C.TIME_UNSET) {
@@ -328,11 +405,16 @@ public class PlayerActivity extends AppCompatActivity
 
         usingVlc = true;
         playerView.setVisibility(View.GONE);
+        exoViewMode.setVisibility(View.GONE);
         vlcVideoLayout.setVisibility(View.VISIBLE);
+        vlcController.setVisibility(View.VISIBLE);
         decoderBadge.setVisibility(View.VISIBLE);
-        vlcTrackControls.setVisibility(View.VISIBLE);
         vlcAudioTracks.setEnabled(false);
         vlcSubtitleTracks.setEnabled(false);
+        vlcSeekBar.setProgress(0);
+        vlcCurrentTime.setText("00:00");
+        vlcTotalTime.setText("00:00");
+        vlcPlayPause.setText("Pause");
         showFeedback("Software decoder");
 
         ArrayList<String> options = new ArrayList<>();
@@ -354,13 +436,23 @@ public class PlayerActivity extends AppCompatActivity
         vlcPlayer.setEventListener(event -> {
             if (event.type == MediaPlayer.Event.Playing) {
                 if (position >= MIN_RESUME_MS) {
-                    try {
-                        vlcPlayer.setTime(position);
-                    } catch (Exception ignored) {}
+                    try { vlcPlayer.setTime(position); } catch (Exception ignored) {}
                 }
-                runOnUiThread(this::refreshVlcTrackControls);
+                runOnUiThread(() -> {
+                    refreshVlcTrackControls();
+                    vlcPlayPause.setText("Pause");
+                    applyViewMode();
+                    handler.removeCallbacks(vlcProgressUpdater);
+                    handler.post(vlcProgressUpdater);
+                });
+            } else if (event.type == MediaPlayer.Event.Paused) {
+                runOnUiThread(() -> vlcPlayPause.setText("Play"));
             } else if (event.type == MediaPlayer.Event.EndReached) {
                 clearResume();
+                runOnUiThread(() -> {
+                    vlcPlayPause.setText("Play");
+                    updateVlcProgress();
+                });
             }
         });
         vlcPlayer.play();
@@ -376,6 +468,7 @@ public class PlayerActivity extends AppCompatActivity
     }
 
     private void releaseVlcPlayer() {
+        handler.removeCallbacks(vlcProgressUpdater);
         if (vlcPlayer != null) {
             try { vlcPlayer.stop(); } catch (Exception ignored) {}
             try { vlcPlayer.detachViews(); } catch (Exception ignored) {}
@@ -388,8 +481,9 @@ public class PlayerActivity extends AppCompatActivity
         }
         usingVlc = false;
         softwareFallbackScheduled = false;
-        if (vlcTrackControls != null) vlcTrackControls.setVisibility(View.GONE);
+        if (vlcController != null) vlcController.setVisibility(View.GONE);
         if (decoderBadge != null) decoderBadge.setVisibility(View.GONE);
+        if (exoViewMode != null) exoViewMode.setVisibility(View.VISIBLE);
     }
 
     private void updateTrackSelectorParameters() {
@@ -438,10 +532,106 @@ public class PlayerActivity extends AppCompatActivity
 
         if (usingVlc && vlcPlayer != null) {
             try { vlcPlayer.setTime(target); } catch (Exception ignored) {}
+            updateVlcProgress();
         } else if (player != null) {
             player.seekTo(target);
         }
         showFeedback((deltaMs > 0 ? "+10s" : "−10s") + " • " + formatTime(target));
+    }
+
+    private void toggleVlcPlayback() {
+        if (!usingVlc || vlcPlayer == null) return;
+        if (vlcPlayer.isPlaying()) {
+            vlcPlayer.pause();
+            vlcPlayPause.setText("Play");
+        } else {
+            vlcPlayer.play();
+            vlcPlayPause.setText("Pause");
+        }
+    }
+
+    private void updateVlcProgress() {
+        if (!usingVlc || vlcPlayer == null) return;
+
+        long position = Math.max(0, vlcPlayer.getTime());
+        long duration = Math.max(0, vlcPlayer.getLength());
+
+        if (!userSeeking) {
+            int progress = duration > 0 ? (int) Math.min(1000L, position * 1000L / duration) : 0;
+            vlcSeekBar.setProgress(progress);
+            vlcCurrentTime.setText(formatTime(position));
+        }
+        vlcTotalTime.setText(formatTime(duration));
+        vlcPlayPause.setText(vlcPlayer.isPlaying() ? "Pause" : "Play");
+    }
+
+    private void cycleViewMode() {
+        viewMode = (viewMode + 1) % VIEW_MODE_LABELS.length;
+        getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .edit().putInt(VIEW_MODE_KEY, viewMode).apply();
+        updateViewModeLabels();
+        applyViewMode();
+        showFeedback("View • " + VIEW_MODE_LABELS[viewMode]);
+    }
+
+    private void updateViewModeLabels() {
+        String label = VIEW_MODE_LABELS[viewMode];
+        if (vlcViewMode != null) vlcViewMode.setText(label);
+        if (exoViewMode != null) exoViewMode.setText(label);
+    }
+
+    private void applyViewMode() {
+        if (!usingVlc) {
+            if (playerView == null) return;
+            switch (viewMode) {
+                case VIEW_ORIGINAL:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH);
+                    break;
+                case VIEW_FILL:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                    break;
+                case VIEW_CROP:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                    break;
+                case VIEW_FIT:
+                default:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+                    break;
+            }
+            return;
+        }
+
+        if (vlcPlayer == null || vlcVideoLayout == null) return;
+        try {
+            vlcVideoLayout.setScaleX(1f);
+            vlcVideoLayout.setScaleY(1f);
+
+            switch (viewMode) {
+                case VIEW_ORIGINAL:
+                    vlcPlayer.setAspectRatio(null);
+                    vlcPlayer.setScale(1f);
+                    break;
+                case VIEW_FILL:
+                    DisplayMetrics metrics = new DisplayMetrics();
+                    getWindowManager().getDefaultDisplay().getMetrics(metrics);
+                    vlcPlayer.setScale(0f);
+                    vlcPlayer.setAspectRatio(metrics.widthPixels + ":" + metrics.heightPixels);
+                    break;
+                case VIEW_CROP:
+                    vlcPlayer.setAspectRatio(null);
+                    vlcPlayer.setScale(0f);
+                    vlcVideoLayout.setScaleX(1.18f);
+                    vlcVideoLayout.setScaleY(1.18f);
+                    break;
+                case VIEW_FIT:
+                default:
+                    vlcPlayer.setAspectRatio(null);
+                    vlcPlayer.setScale(0f);
+                    break;
+            }
+        } catch (Throwable t) {
+            Log.w("PlayerActivity", "Unable to apply VLC view mode", t);
+        }
     }
 
     private void saveResumePosition() {
@@ -459,9 +649,7 @@ public class PlayerActivity extends AppCompatActivity
     }
 
     private void clearResume() {
-        if (currentUrl != null) {
-            ResumeUtils.remove(this, currentUrl);
-        }
+        if (currentUrl != null) ResumeUtils.remove(this, currentUrl);
     }
 
     private boolean isLikelyHevcSource(String url) {
@@ -594,7 +782,10 @@ public class PlayerActivity extends AppCompatActivity
 
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
-            if (!usingVlc) {
+            if (usingVlc) {
+                vlcController.setVisibility(
+                        vlcController.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+            } else {
                 if (playerView.isControllerFullyVisible()) playerView.hideController();
                 else playerView.showController();
             }
@@ -648,8 +839,6 @@ public class PlayerActivity extends AppCompatActivity
 
         @Override
         public void onPlayerError(PlaybackException error) {
-            // ExoPlayer decoder errors occupy the 4001-4004 range.
-            // Try system/extension decoders first, then libVLC software decode.
             if (error.errorCode >= 4001 && error.errorCode <= 4004) {
                 scheduleSoftwareFallback();
             } else if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
