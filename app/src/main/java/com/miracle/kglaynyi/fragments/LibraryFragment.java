@@ -14,8 +14,18 @@ import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.adapter.FragmentViewPagerAdapter;
 
 public class LibraryFragment extends BaseFragment {
+    private static final String ARG_TAB = "initial_tab";
+
     private TabLayout tabLayout;
     private ViewPager2 viewPagerLibrary;
+
+    public static LibraryFragment newInstance(int tab) {
+        LibraryFragment fragment = new LibraryFragment();
+        Bundle args = new Bundle();
+        args.putInt(ARG_TAB, Math.max(0, Math.min(3, tab)));
+        fragment.setArguments(args);
+        return fragment;
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -31,15 +41,24 @@ public class LibraryFragment extends BaseFragment {
         viewPagerLibrary.setAdapter(new FragmentViewPagerAdapter(this));
 
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override public void onTabSelected(TabLayout.Tab tab) { viewPagerLibrary.setCurrentItem(tab.getPosition()); }
+            @Override public void onTabSelected(TabLayout.Tab tab) {
+                viewPagerLibrary.setCurrentItem(tab.getPosition(), true);
+            }
             @Override public void onTabUnselected(TabLayout.Tab tab) { }
             @Override public void onTabReselected(TabLayout.Tab tab) { }
         });
+
         viewPagerLibrary.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override public void onPageSelected(int position) {
                 TabLayout.Tab tab = tabLayout.getTabAt(position);
-                if (tab != null) tabLayout.selectTab(tab);
+                if (tab != null && !tab.isSelected()) tabLayout.selectTab(tab);
             }
         });
+
+        int initialTab = getArguments() == null ? 0 : getArguments().getInt(ARG_TAB, 0);
+        initialTab = Math.max(0, Math.min(3, initialTab));
+        viewPagerLibrary.setCurrentItem(initialTab, false);
+        TabLayout.Tab tab = tabLayout.getTabAt(initialTab);
+        if (tab != null) tabLayout.selectTab(tab);
     }
 }
