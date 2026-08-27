@@ -107,4 +107,10 @@ public interface EpisodeDao {
     @Query("SELECT * FROM Episode WHERE index_id=:indexId AND (folder_path=:folderPath OR folder_path LIKE :folderPrefix)")
     List<Episode> getByFolderPrefix(int indexId, String folderPath, String folderPrefix);
 
+    @Query("SELECT * FROM Episode WHERE show_id=:showId AND disabled=0 GROUP BY id ORDER BY season_number, episode_number")
+    List<Episode> getAvailableEpisodesForShow(long showId);
+
+    @Query("SELECT * FROM Episode WHERE show_id=:showId AND disabled=0 AND (season_number>:seasonNumber OR (season_number=:seasonNumber AND episode_number>:episodeNumber)) GROUP BY id ORDER BY season_number, episode_number LIMIT 1")
+    Episode getFollowingEpisode(long showId, int seasonNumber, int episodeNumber);
+
 }
