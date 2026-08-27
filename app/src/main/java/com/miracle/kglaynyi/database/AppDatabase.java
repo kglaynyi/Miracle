@@ -13,7 +13,7 @@ import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
 
 @Database(entities = {ResFormat.class, Movie.class, IndexLink.class, TVShow.class, TVShowSeasonDetails.class, Episode.class},
-        version = 31, autoMigrations = { @AutoMigration(from = 23, to = 24),@AutoMigration(from = 24, to = 25),@AutoMigration(from = 25, to = 26),@AutoMigration(from = 26, to = 27),@AutoMigration(from = 27, to = 28),@AutoMigration(from = 28, to = 29),@AutoMigration(from = 29, to = 30),@AutoMigration(from = 30, to = 31)})
+        version = 32, autoMigrations = { @AutoMigration(from = 23, to = 24),@AutoMigration(from = 24, to = 25),@AutoMigration(from = 25, to = 26),@AutoMigration(from = 26, to = 27),@AutoMigration(from = 27, to = 28),@AutoMigration(from = 28, to = 29),@AutoMigration(from = 29, to = 30),@AutoMigration(from = 30, to = 31),@AutoMigration(from = 31, to = 32)})
 @TypeConverters({Converters.class})
 
 
