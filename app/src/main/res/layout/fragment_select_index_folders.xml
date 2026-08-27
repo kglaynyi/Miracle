@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="32dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="24dp">
+
+    <TextView
+        android:id="@+id/folderPickerTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/jost_bold"
+        android:text="Select Folders"
+        android:textColor="@color/white"
+        android:textSize="25sp" />
+
+    <TextView
+        android:id="@+id/folderPickerIndex"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:fontFamily="@font/jost_regular"
+        android:maxLines="2"
+        android:textColor="#90FFFFFF"
+        android:textSize="14sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:fontFamily="@font/jost_regular"
+        android:text="Choose one or more folders. Existing selections stay checked, so you can add another folder later."
+        android:textColor="#B0FFFFFF"
+        android:textSize="15sp" />
+
+    <ProgressBar
+        android:id="@+id/folderPickerProgress"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="14dp"
+        android:indeterminateTint="@color/white" />
+
+    <TextView
+        android:id="@+id/folderPickerStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:fontFamily="@font/jost_regular"
+        android:gravity="center_horizontal"
+        android:text="Loading folders…"
+        android:textColor="@color/white"
+        android:textSize="15sp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="10dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:id="@+id/folderCheckboxContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="16dp" />
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/folderPickerCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/search_bg"
+            android:fontFamily="@font/jost_regular"
+            android:text="Cancel"
+            android:textAllCaps="false"
+            android:textColor="@color/white" />
+
+        <Button
+            android:id="@+id/folderPickerSave"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:background="@drawable/rounded_corner_labels"
+            android:enabled="false"
+            android:fontFamily="@font/jost_medium"
+            android:text="Save &amp; Scan"
+            android:textAllCaps="false"
+            android:textColor="@color/download_button_bg_color" />
+    </LinearLayout>
+
+</LinearLayout>
