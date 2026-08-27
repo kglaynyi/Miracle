@@ -1,10 +1,12 @@
 package com.miracle.kglaynyi.player;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.media.AudioManager;
+import android.media.MediaCodecInfo;
+import android.media.MediaCodecList;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -15,6 +17,7 @@ import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -27,6 +30,7 @@ import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.RenderersFactory;
+import com.google.android.exoplayer2.Tracks;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.drm.DefaultDrmSessionManagerProvider;
 import com.google.android.exoplayer2.source.DefaultMediaSourceFactory;
@@ -35,7 +39,9 @@ import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.util.EventLogger;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.miracle.kglaynyi.R;
+import com.miracle.kglaynyi.utils.ResumeUtils;
 
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
@@ -52,8 +58,6 @@ public class PlayerActivity extends AppCompatActivity
     private static final String KEY_ITEM_INDEX = "item_index";
     private static final String KEY_POSITION = "position";
     private static final String KEY_AUTO_PLAY = "auto_play";
-    private static final String RESUME_PREFS = "miracle_video_resume";
-
     private static final long SEEK_STEP_MS = 10_000L;
     private static final long MIN_RESUME_MS = 10_000L;
     private static final long FINISHED_THRESHOLD_MS = 30_000L;
@@ -79,6 +83,11 @@ public class PlayerActivity extends AppCompatActivity
     private int uiOptions;
     private TextView gestureFeedback;
     private TextView decoderBadge;
+    private View vlcTrackControls;
+    private Button vlcAudioTracks;
+    private Button vlcSubtitleTracks;
+    private Boolean hardwareHevcAvailable;
+    private boolean softwareFallbackScheduled;
     private GestureDetector gestureDetector;
     private AudioManager audioManager;
     private int maxVolume;
@@ -120,6 +129,12 @@ public class PlayerActivity extends AppCompatActivity
         vlcVideoLayout = findViewById(R.id.vlc_video_layout);
         gestureFeedback = findViewById(R.id.gesture_feedback);
         decoderBadge = findViewById(R.id.decoder_badge);
+        vlcTrackControls = findViewById(R.id.vlc_track_controls);
+        vlcAudioTracks = findViewById(R.id.vlc_audio_tracks);
+        vlcSubtitleTracks = findViewById(R.id.vlc_subtitle_tracks);
+
+        vlcAudioTracks.setOnClickListener(v -> showVlcTrackDialog(false));
+        vlcSubtitleTracks.setOnClickListener(v -> showVlcTrackDialog(true));
 
         playerView.setControllerVisibilityListener(this);
         playerView.requestFocus();
@@ -245,11 +260,16 @@ public class PlayerActivity extends AppCompatActivity
         mediaItem = MediaItem.fromUri(uri);
 
         if (startItemIndex == C.INDEX_UNSET) {
-            long saved = getResumePreferences().getLong(resumeKey(currentUrl), C.TIME_UNSET);
+            long saved = ResumeUtils.getPosition(this, currentUrl);
             if (saved >= MIN_RESUME_MS) {
                 startItemIndex = 0;
                 startPosition = saved;
             }
+        }
+
+        if (isLikelyHevcSource(currentUrl) && !hasHardwareHevcDecoder()) {
+            startSoftwareFallback();
+            return true;
         }
 
         ExoPlayer.Builder playerBuilder = new ExoPlayer.Builder(this)
@@ -269,6 +289,7 @@ public class PlayerActivity extends AppCompatActivity
         playerView.setVisibility(View.VISIBLE);
         vlcVideoLayout.setVisibility(View.GONE);
         decoderBadge.setVisibility(View.GONE);
+        vlcTrackControls.setVisibility(View.GONE);
 
         player.setMediaItem(mediaItem);
         if (startItemIndex != C.INDEX_UNSET && startPosition != C.TIME_UNSET) {
@@ -309,10 +330,13 @@ public class PlayerActivity extends AppCompatActivity
         playerView.setVisibility(View.GONE);
         vlcVideoLayout.setVisibility(View.VISIBLE);
         decoderBadge.setVisibility(View.VISIBLE);
+        vlcTrackControls.setVisibility(View.VISIBLE);
+        vlcAudioTracks.setEnabled(false);
+        vlcSubtitleTracks.setEnabled(false);
         showFeedback("Software decoder");
 
         ArrayList<String> options = new ArrayList<>();
-        options.add("--network-caching=2000");
+        options.add("--network-caching=1000");
         options.add("--avcodec-hw=none");
         options.add("--no-drop-late-frames");
         options.add("--no-skip-frames");
@@ -328,10 +352,13 @@ public class PlayerActivity extends AppCompatActivity
 
         final long position = Math.max(0, resumeAt);
         vlcPlayer.setEventListener(event -> {
-            if (event.type == MediaPlayer.Event.Playing && position >= MIN_RESUME_MS) {
-                try {
-                    vlcPlayer.setTime(position);
-                } catch (Exception ignored) {}
+            if (event.type == MediaPlayer.Event.Playing) {
+                if (position >= MIN_RESUME_MS) {
+                    try {
+                        vlcPlayer.setTime(position);
+                    } catch (Exception ignored) {}
+                }
+                runOnUiThread(this::refreshVlcTrackControls);
             } else if (event.type == MediaPlayer.Event.EndReached) {
                 clearResume();
             }
@@ -360,6 +387,9 @@ public class PlayerActivity extends AppCompatActivity
             libVLC = null;
         }
         usingVlc = false;
+        softwareFallbackScheduled = false;
+        if (vlcTrackControls != null) vlcTrackControls.setVisibility(View.GONE);
+        if (decoderBadge != null) decoderBadge.setVisibility(View.GONE);
     }
 
     private void updateTrackSelectorParameters() {
@@ -414,14 +444,6 @@ public class PlayerActivity extends AppCompatActivity
         showFeedback((deltaMs > 0 ? "+10s" : "−10s") + " • " + formatTime(target));
     }
 
-    private SharedPreferences getResumePreferences() {
-        return getSharedPreferences(RESUME_PREFS, MODE_PRIVATE);
-    }
-
-    private String resumeKey(String url) {
-        return "resume_" + Integer.toHexString(url.hashCode());
-    }
-
     private void saveResumePosition() {
         if (currentUrl == null || currentUrl.isEmpty()) return;
 
@@ -432,14 +454,112 @@ public class PlayerActivity extends AppCompatActivity
                 || (duration > 0 && duration - position <= FINISHED_THRESHOLD_MS)) {
             clearResume();
         } else {
-            getResumePreferences().edit().putLong(resumeKey(currentUrl), position).apply();
+            ResumeUtils.save(this, currentUrl, position);
         }
     }
 
     private void clearResume() {
         if (currentUrl != null) {
-            getResumePreferences().edit().remove(resumeKey(currentUrl)).apply();
+            ResumeUtils.remove(this, currentUrl);
         }
+    }
+
+    private boolean isLikelyHevcSource(String url) {
+        if (url == null) return false;
+        String name = Uri.decode(Uri.parse(url).getLastPathSegment() == null
+                ? url : Uri.parse(url).getLastPathSegment()).toLowerCase(Locale.US);
+        return name.contains("x265") || name.contains("h265")
+                || name.contains("h.265") || name.contains("hevc");
+    }
+
+    private boolean hasHardwareHevcDecoder() {
+        if (hardwareHevcAvailable != null) return hardwareHevcAvailable;
+        boolean available = false;
+        try {
+            MediaCodecInfo[] infos = new MediaCodecList(MediaCodecList.ALL_CODECS).getCodecInfos();
+            for (MediaCodecInfo info : infos) {
+                if (info == null || info.isEncoder()) continue;
+
+                boolean supportsHevc = false;
+                for (String type : info.getSupportedTypes()) {
+                    if (MimeTypes.VIDEO_H265.equalsIgnoreCase(type)) {
+                        supportsHevc = true;
+                        break;
+                    }
+                }
+                if (!supportsHevc) continue;
+
+                if (Build.VERSION.SDK_INT >= 29) {
+                    if (info.isHardwareAccelerated()) {
+                        available = true;
+                        break;
+                    }
+                } else {
+                    String codecName = info.getName() == null
+                            ? "" : info.getName().toLowerCase(Locale.US);
+                    boolean software = codecName.contains("google")
+                            || codecName.contains("android")
+                            || codecName.contains("software")
+                            || codecName.contains("sw")
+                            || codecName.contains("ffmpeg");
+                    if (!software) {
+                        available = true;
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        hardwareHevcAvailable = available;
+        return available;
+    }
+
+    private void scheduleSoftwareFallback() {
+        if (usingVlc || softwareFallbackScheduled) return;
+        softwareFallbackScheduled = true;
+        handler.post(() -> {
+            softwareFallbackScheduled = false;
+            if (!usingVlc) startSoftwareFallback();
+        });
+    }
+
+    private void refreshVlcTrackControls() {
+        if (!usingVlc || vlcPlayer == null) return;
+        MediaPlayer.TrackDescription[] audioTracks = vlcPlayer.getAudioTracks();
+        MediaPlayer.TrackDescription[] subtitleTracks = vlcPlayer.getSpuTracks();
+        vlcAudioTracks.setEnabled(audioTracks != null && audioTracks.length > 0);
+        vlcSubtitleTracks.setEnabled(subtitleTracks != null && subtitleTracks.length > 0);
+    }
+
+    private void showVlcTrackDialog(boolean subtitles) {
+        if (!usingVlc || vlcPlayer == null) return;
+
+        MediaPlayer.TrackDescription[] tracks =
+                subtitles ? vlcPlayer.getSpuTracks() : vlcPlayer.getAudioTracks();
+        if (tracks == null || tracks.length == 0) {
+            showToast(subtitles ? "No subtitle tracks found" : "No audio tracks found");
+            return;
+        }
+
+        String[] labels = new String[tracks.length];
+        for (int i = 0; i < tracks.length; i++) {
+            String name = tracks[i].name;
+            labels[i] = (name == null || name.trim().isEmpty())
+                    ? (subtitles ? "Subtitle " : "Audio ") + (i + 1)
+                    : name;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(subtitles ? "Subtitles" : "Audio track")
+                .setItems(labels, (dialog, which) -> {
+                    if (which < 0 || which >= tracks.length) return;
+                    if (subtitles) {
+                        vlcPlayer.setSpuTrack(tracks[which].id);
+                    } else {
+                        vlcPlayer.setAudioTrack(tracks[which].id);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void showFeedback(String message) {
@@ -513,11 +633,25 @@ public class PlayerActivity extends AppCompatActivity
         }
 
         @Override
+        public void onTracksChanged(Tracks tracks) {
+            if (tracks == null || hasHardwareHevcDecoder()) return;
+            for (Tracks.Group group : tracks.getGroups()) {
+                for (int i = 0; i < group.length; i++) {
+                    String mime = group.getTrackFormat(i).sampleMimeType;
+                    if (MimeTypes.VIDEO_H265.equals(mime)) {
+                        scheduleSoftwareFallback();
+                        return;
+                    }
+                }
+            }
+        }
+
+        @Override
         public void onPlayerError(PlaybackException error) {
             // ExoPlayer decoder errors occupy the 4001-4004 range.
             // Try system/extension decoders first, then libVLC software decode.
             if (error.errorCode >= 4001 && error.errorCode <= 4004) {
-                startSoftwareFallback();
+                scheduleSoftwareFallback();
             } else if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                 if (player != null) {
                     player.seekToDefaultPosition();
