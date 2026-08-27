@@ -37,6 +37,17 @@ public class Movie implements MyMedia{
     @ColumnInfo(name = "index_id", defaultValue = "0")
     public int index_id;
 
+    @ColumnInfo(name = "folder_path", defaultValue = "")
+    public String folder_path;
+
+    public String getFolder_path() {
+        return folder_path;
+    }
+
+    public void setFolder_path(String folder_path) {
+        this.folder_path = folder_path == null ? "" : folder_path;
+    }
+
     public int getIndex_id() {
         return index_id;
     }
