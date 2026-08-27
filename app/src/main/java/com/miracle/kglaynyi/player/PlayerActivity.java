@@ -784,6 +784,7 @@ public class PlayerActivity extends AppCompatActivity
                 && position > MIN_RESUME_MS
                 && duration - position <= endSkipSeconds * 1000L) {
             endSkipApplied = true;
+            PlaybackHistoryUtils.markCompleted(this, resumeKey);
             clearResume();
             String nextUrl = getIntent().getStringExtra(EXTRA_NEXT_URL);
             if (nextUrl != null && !nextUrl.trim().isEmpty()) {
