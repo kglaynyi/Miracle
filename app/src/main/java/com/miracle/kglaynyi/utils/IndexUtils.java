@@ -67,6 +67,16 @@ public class IndexUtils {
                 }
 
                 int id = saved.getId();
+
+                // GDI-JS root indexes are mixed libraries in current Miracle.
+                // Migrate older saved Movies/TVShows choices so one refresh handles both.
+                if ("GDI-JS".equals(indexType) && !"Movies + TV Shows".equals(folderType)) {
+                    folderType = "Movies + TV Shows";
+                    DatabaseClient.getInstance(mContext).getAppDatabase()
+                            .indexLinksDao().updateFolderType(id, folderType);
+                    saved.setFolderType(folderType);
+                }
+
                 boolean tvShows = "TVShows".equals(folderType);
 
                 if ("GDI-JS".equals(indexType)) {
