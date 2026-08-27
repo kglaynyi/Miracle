@@ -15,6 +15,7 @@ import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.adapter.IndexAdapter;
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.IndexLink;
+import com.miracle.kglaynyi.utils.IndexUtils;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -45,6 +46,9 @@ public class ManageIndexesFragment extends BaseFragment{
         Executors.newSingleThreadExecutor().execute(new Runnable() {
             @Override
             public void run() {
+                // Remove the short-lived Google Drive direct-source experiment and
+                // any other unsupported legacy source types. GDI-JS is the only source.
+                IndexUtils.purgeUnsupportedSources(mActivity);
                 list = DatabaseClient.getInstance(mActivity).getAppDatabase().indexLinksDao().getAll();
                                 mActivity.runOnUiThread(new Runnable() {
                                     @Override
