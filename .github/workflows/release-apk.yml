@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Adds MX Player-style screen selection, real in-player source quality switching, adaptive quality control, subtitle-size control, and punch-hole/notch-safe fullscreen player controls."
+          NOTES="Adds Google Drive selected-folder video sources through the Android system Drive picker, keeps GDI-JS as the only index method, removes duplicate media sources using stable IDs, labels Drive/GDI sources in the player, and keeps the punch-hole/notch-safe player controls."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
             gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
