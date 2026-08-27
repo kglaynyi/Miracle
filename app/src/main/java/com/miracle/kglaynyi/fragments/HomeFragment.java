@@ -106,6 +106,20 @@ public class HomeFragment extends BaseFragment {
     @Override
     public void onDestroyView() {
         uiHandler.removeCallbacks(scanStatusRunnable);
+
+        // Bottom-navigation uses the same Fragment instance with replace().
+        // Its RecyclerViews are destroyed here, so do not keep adapters that
+        // belonged to the old view hierarchy. Fresh adapters will be attached
+        // when Home is recreated.
+        continueWatchingAdapter = null;
+        recentlyAddedAdapter = null;
+        recentlyReleasedAdapter = null;
+        moviesAdapter = null;
+        lastPlayedAdapter = null;
+        watchlistAdapter = null;
+        newSeasonAdapter = null;
+        topRatedShowsAdapter = null;
+
         super.onDestroyView();
     }
 
