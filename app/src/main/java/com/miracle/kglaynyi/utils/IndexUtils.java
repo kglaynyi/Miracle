@@ -7,6 +7,8 @@ import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestSimpleProgra
 import static com.miracle.kglaynyi.utils.SendPostRequest.resetPagingState;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.IndexLink;
@@ -201,6 +203,14 @@ public class IndexUtils {
                     .getAppDatabase()
                     .indexLinksDao()
                     .deleteById(indexLink.getId());
+
+            if ("Google Drive".equals(indexLink.getIndexType())) {
+                try {
+                    mContext.getContentResolver().releasePersistableUriPermission(
+                            Uri.parse(indexLink.getLink()), Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (Exception ignored) {
+                }
+            }
         });
         thread.start();
         try {
