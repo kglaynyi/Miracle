@@ -14,6 +14,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -52,7 +53,11 @@ import org.videolan.libvlc.MediaPlayer;
 import org.videolan.libvlc.util.VLCVideoLayout;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class PlayerActivity extends AppCompatActivity
         implements View.OnClickListener, StyledPlayerView.ControllerVisibilityListener {
@@ -66,13 +71,21 @@ public class PlayerActivity extends AppCompatActivity
     private static final long FINISHED_THRESHOLD_MS = 30_000L;
     private static final String PLAYER_SETTINGS = "Settings";
     private static final String VIEW_MODE_KEY = "PLAYER_VIEW_MODE";
+    private static final String SUBTITLE_SIZE_KEY = "PLAYER_SUBTITLE_SIZE_SP";
+    private static final String QUALITY_HEIGHT_KEY = "PLAYER_QUALITY_HEIGHT";
 
     private static final int VIEW_FIT = 0;
     private static final int VIEW_ORIGINAL = 1;
     private static final int VIEW_FILL = 2;
     private static final int VIEW_CROP = 3;
-    private static final String[] VIEW_MODE_LABELS = {"Fit", "Original", "Full", "Crop"};
+    private static final int VIEW_STRETCH = 4;
+    private static final String[] VIEW_MODE_LABELS =
+            {"Fit", "100%", "Fill screen", "Crop", "Stretch"};
+    private static final int DEFAULT_SUBTITLE_SIZE_SP = 22;
+    private static final int[] SUBTITLE_SIZE_PRESETS = {14, 18, 22, 26, 32};
 
+    public static final String EXTRA_QUALITY_URLS = "quality_urls";
+    public static final String EXTRA_QUALITY_LABELS = "quality_labels";
     public static final String PREFER_EXTENSION_DECODERS_EXTRA = "prefer_extension_decoders";
 
     protected StyledPlayerView playerView;
@@ -100,7 +113,12 @@ public class PlayerActivity extends AppCompatActivity
     private Button vlcSubtitleTracks;
     private Button vlcPlayPause;
     private Button vlcViewMode;
+    private Button vlcQuality;
+    private Button vlcSubtitleSize;
+    private View exoExtraControls;
     private Button exoViewMode;
+    private Button exoQuality;
+    private Button exoSubtitleSize;
     private SeekBar vlcSeekBar;
     private TextView vlcCurrentTime;
     private TextView vlcTotalTime;
@@ -113,6 +131,10 @@ public class PlayerActivity extends AppCompatActivity
     private int maxVolume;
     private int gestureStartVolume;
     private int viewMode;
+    private int subtitleSizeSp;
+    private int selectedQualityHeight;
+    private String[] qualityUrls;
+    private String[] qualityLabels;
 
     private String currentUrl;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -167,21 +189,35 @@ public class PlayerActivity extends AppCompatActivity
         vlcSubtitleTracks = findViewById(R.id.vlc_subtitle_tracks);
         vlcPlayPause = findViewById(R.id.vlc_play_pause);
         vlcViewMode = findViewById(R.id.video_view_mode);
+        vlcQuality = findViewById(R.id.vlc_quality);
+        vlcSubtitleSize = findViewById(R.id.vlc_subtitle_size);
+        exoExtraControls = findViewById(R.id.exo_extra_controls);
         exoViewMode = findViewById(R.id.exo_view_mode);
+        exoQuality = findViewById(R.id.exo_quality);
+        exoSubtitleSize = findViewById(R.id.exo_subtitle_size);
         vlcSeekBar = findViewById(R.id.vlc_seek_bar);
         vlcCurrentTime = findViewById(R.id.vlc_current_time);
         vlcTotalTime = findViewById(R.id.vlc_total_time);
 
         viewMode = getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
                 .getInt(VIEW_MODE_KEY, VIEW_FIT);
-        if (viewMode < VIEW_FIT || viewMode > VIEW_CROP) viewMode = VIEW_FIT;
-        updateViewModeLabels();
+        if (viewMode < VIEW_FIT || viewMode > VIEW_STRETCH) viewMode = VIEW_FIT;
+        subtitleSizeSp = getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .getInt(SUBTITLE_SIZE_KEY, DEFAULT_SUBTITLE_SIZE_SP);
+        selectedQualityHeight = getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .getInt(QUALITY_HEIGHT_KEY, 0);
+        readQualitySources(getIntent());
+        updateControlLabels();
 
         vlcAudioTracks.setOnClickListener(v -> showVlcTrackDialog(false));
         vlcSubtitleTracks.setOnClickListener(v -> showVlcTrackDialog(true));
         vlcPlayPause.setOnClickListener(v -> toggleVlcPlayback());
-        vlcViewMode.setOnClickListener(v -> cycleViewMode());
-        exoViewMode.setOnClickListener(v -> cycleViewMode());
+        vlcViewMode.setOnClickListener(v -> showViewModeDialog());
+        exoViewMode.setOnClickListener(v -> showViewModeDialog());
+        vlcQuality.setOnClickListener(v -> showQualityDialog());
+        exoQuality.setOnClickListener(v -> showQualityDialog());
+        vlcSubtitleSize.setOnClickListener(v -> showSubtitleSizeDialog());
+        exoSubtitleSize.setOnClickListener(v -> showSubtitleSizeDialog());
 
         vlcSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -238,6 +274,7 @@ public class PlayerActivity extends AppCompatActivity
         releaseVlcPlayer();
         clearStartPosition();
         setIntent(intent);
+        readQualitySources(intent);
         currentUrl = null;
         initializePlayer();
     }
@@ -316,7 +353,12 @@ public class PlayerActivity extends AppCompatActivity
         return (!usingVlc && playerView.dispatchKeyEvent(event)) || super.dispatchKeyEvent(event);
     }
 
-    @Override public void onVisibilityChanged(int visibility) {}
+    @Override
+    public void onVisibilityChanged(int visibility) {
+        if (!usingVlc && exoExtraControls != null) {
+            exoExtraControls.setVisibility(visibility == View.VISIBLE ? View.VISIBLE : View.GONE);
+        }
+    }
     @Override public void onClick(View view) {}
 
     protected boolean initializePlayer() {
@@ -355,6 +397,7 @@ public class PlayerActivity extends AppCompatActivity
                 intent.getBooleanExtra(PREFER_EXTENSION_DECODERS_EXTRA, true));
 
         player = playerBuilder.build();
+        applySavedQualityPreference();
         player.setTrackSelectionParameters(trackSelectionParameters);
         player.addListener(new PlayerEventListener());
         player.addAnalyticsListener(new EventLogger());
@@ -365,8 +408,9 @@ public class PlayerActivity extends AppCompatActivity
         vlcVideoLayout.setVisibility(View.GONE);
         vlcController.setVisibility(View.GONE);
         decoderBadge.setVisibility(View.GONE);
-        exoViewMode.setVisibility(View.VISIBLE);
+        exoExtraControls.setVisibility(View.VISIBLE);
         applyViewMode();
+        applySubtitleSize();
 
         player.setMediaItem(mediaItem);
         if (startItemIndex != C.INDEX_UNSET && startPosition != C.TIME_UNSET) {
@@ -405,7 +449,7 @@ public class PlayerActivity extends AppCompatActivity
 
         usingVlc = true;
         playerView.setVisibility(View.GONE);
-        exoViewMode.setVisibility(View.GONE);
+        exoExtraControls.setVisibility(View.GONE);
         vlcVideoLayout.setVisibility(View.VISIBLE);
         vlcController.setVisibility(View.VISIBLE);
         decoderBadge.setVisibility(View.VISIBLE);
@@ -422,6 +466,7 @@ public class PlayerActivity extends AppCompatActivity
         options.add("--avcodec-hw=none");
         options.add("--no-drop-late-frames");
         options.add("--no-skip-frames");
+        options.add("--freetype-rel-fontsize=" + getVlcRelativeFontSize());
 
         libVLC = new LibVLC(this, options);
         vlcPlayer = new MediaPlayer(libVLC);
@@ -440,8 +485,9 @@ public class PlayerActivity extends AppCompatActivity
                 }
                 runOnUiThread(() -> {
                     refreshVlcTrackControls();
-                    vlcPlayPause.setText("Pause");
+                    vlcPlayPause.setText(vlcPlayer != null && vlcPlayer.isPlaying() ? "Pause" : "Play");
                     applyViewMode();
+                    updateControlLabels();
                     handler.removeCallbacks(vlcProgressUpdater);
                     handler.post(vlcProgressUpdater);
                 });
@@ -483,7 +529,7 @@ public class PlayerActivity extends AppCompatActivity
         softwareFallbackScheduled = false;
         if (vlcController != null) vlcController.setVisibility(View.GONE);
         if (decoderBadge != null) decoderBadge.setVisibility(View.GONE);
-        if (exoViewMode != null) exoViewMode.setVisibility(View.VISIBLE);
+        if (exoExtraControls != null) exoExtraControls.setVisibility(View.VISIBLE);
     }
 
     private void updateTrackSelectorParameters() {
@@ -565,33 +611,60 @@ public class PlayerActivity extends AppCompatActivity
         vlcPlayPause.setText(vlcPlayer.isPlaying() ? "Pause" : "Play");
     }
 
-    private void cycleViewMode() {
-        viewMode = (viewMode + 1) % VIEW_MODE_LABELS.length;
-        getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
-                .edit().putInt(VIEW_MODE_KEY, viewMode).apply();
-        updateViewModeLabels();
-        applyViewMode();
-        showFeedback("View • " + VIEW_MODE_LABELS[viewMode]);
+    private void showViewModeDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Screen")
+                .setSingleChoiceItems(VIEW_MODE_LABELS, viewMode, (dialog, which) -> {
+                    if (which < 0 || which >= VIEW_MODE_LABELS.length) return;
+                    viewMode = which;
+                    getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                            .edit().putInt(VIEW_MODE_KEY, viewMode).apply();
+                    updateControlLabels();
+                    applyViewMode();
+                    showFeedback("Screen • " + VIEW_MODE_LABELS[viewMode]);
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
-    private void updateViewModeLabels() {
-        String label = VIEW_MODE_LABELS[viewMode];
-        if (vlcViewMode != null) vlcViewMode.setText(label);
-        if (exoViewMode != null) exoViewMode.setText(label);
+    private void updateControlLabels() {
+        if (vlcViewMode != null) vlcViewMode.setText("Screen");
+        if (exoViewMode != null) exoViewMode.setText("Screen");
+
+        String qualityLabel = getCurrentQualityLabel();
+        if (vlcQuality != null) vlcQuality.setText(qualityLabel);
+        if (exoQuality != null) exoQuality.setText(qualityLabel);
+
+        String subLabel = "Sub " + subtitleSizeSp;
+        if (vlcSubtitleSize != null) vlcSubtitleSize.setText(subLabel);
+        if (exoSubtitleSize != null) exoSubtitleSize.setText(subLabel);
     }
 
     private void applyViewMode() {
         if (!usingVlc) {
             if (playerView == null) return;
+            View surface = playerView.getVideoSurfaceView();
+            if (surface != null) {
+                surface.setScaleX(1f);
+                surface.setScaleY(1f);
+            }
             switch (viewMode) {
                 case VIEW_ORIGINAL:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH);
                     break;
                 case VIEW_FILL:
-                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
                     break;
                 case VIEW_CROP:
                     playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+                    if (surface != null) {
+                        surface.setScaleX(1.15f);
+                        surface.setScaleY(1.15f);
+                    }
+                    break;
+                case VIEW_STRETCH:
+                    playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
                     break;
                 case VIEW_FIT:
                 default:
@@ -605,33 +678,274 @@ public class PlayerActivity extends AppCompatActivity
         try {
             vlcVideoLayout.setScaleX(1f);
             vlcVideoLayout.setScaleY(1f);
+            vlcPlayer.setAspectRatio(null);
 
             switch (viewMode) {
                 case VIEW_ORIGINAL:
-                    vlcPlayer.setAspectRatio(null);
                     vlcPlayer.setScale(1f);
                     break;
                 case VIEW_FILL:
+                    vlcPlayer.setScale(0f);
+                    vlcVideoLayout.setScaleX(1.12f);
+                    vlcVideoLayout.setScaleY(1.12f);
+                    break;
+                case VIEW_CROP:
+                    vlcPlayer.setScale(0f);
+                    vlcVideoLayout.setScaleX(1.28f);
+                    vlcVideoLayout.setScaleY(1.28f);
+                    break;
+                case VIEW_STRETCH:
                     DisplayMetrics metrics = new DisplayMetrics();
                     getWindowManager().getDefaultDisplay().getMetrics(metrics);
                     vlcPlayer.setScale(0f);
                     vlcPlayer.setAspectRatio(metrics.widthPixels + ":" + metrics.heightPixels);
                     break;
-                case VIEW_CROP:
-                    vlcPlayer.setAspectRatio(null);
-                    vlcPlayer.setScale(0f);
-                    vlcVideoLayout.setScaleX(1.18f);
-                    vlcVideoLayout.setScaleY(1.18f);
-                    break;
                 case VIEW_FIT:
                 default:
-                    vlcPlayer.setAspectRatio(null);
                     vlcPlayer.setScale(0f);
                     break;
             }
         } catch (Throwable t) {
-            Log.w("PlayerActivity", "Unable to apply VLC view mode", t);
+            Log.w("PlayerActivity", "Unable to apply VLC screen mode", t);
         }
+    }
+
+    private void showSubtitleSizeDialog() {
+        String[] labels = new String[SUBTITLE_SIZE_PRESETS.length];
+        int checked = -1;
+        for (int i = 0; i < SUBTITLE_SIZE_PRESETS.length; i++) {
+            int size = SUBTITLE_SIZE_PRESETS[i];
+            labels[i] = size + " sp" + (size == DEFAULT_SUBTITLE_SIZE_SP ? " • Default" : "");
+            if (size == subtitleSizeSp) checked = i;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Subtitle size")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    if (which < 0 || which >= SUBTITLE_SIZE_PRESETS.length) return;
+                    subtitleSizeSp = SUBTITLE_SIZE_PRESETS[which];
+                    getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                            .edit().putInt(SUBTITLE_SIZE_KEY, subtitleSizeSp).apply();
+                    updateControlLabels();
+                    if (usingVlc) {
+                        restartVlcForSubtitleSize();
+                    } else {
+                        applySubtitleSize();
+                    }
+                    showFeedback("Subtitle • " + subtitleSizeSp + " sp");
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void applySubtitleSize() {
+        if (playerView == null || playerView.getSubtitleView() == null) return;
+        playerView.getSubtitleView().setApplyEmbeddedFontSizes(false);
+        playerView.getSubtitleView().setFixedTextSize(
+                TypedValue.COMPLEX_UNIT_SP, subtitleSizeSp);
+    }
+
+    private int getVlcRelativeFontSize() {
+        if (subtitleSizeSp <= 14) return 22;
+        if (subtitleSizeSp <= 18) return 19;
+        if (subtitleSizeSp <= 22) return 16;
+        if (subtitleSizeSp <= 26) return 13;
+        return 10;
+    }
+
+    private void restartVlcForSubtitleSize() {
+        if (!usingVlc || vlcPlayer == null) return;
+        long position = getPlaybackPosition();
+        boolean playWhenReady = vlcPlayer.isPlaying();
+        releaseVlcPlayer();
+        startItemIndex = 0;
+        startPosition = position;
+        startAutoPlay = playWhenReady;
+        startSoftwareFallback();
+    }
+
+    private void readQualitySources(Intent intent) {
+        if (intent == null) {
+            qualityUrls = null;
+            qualityLabels = null;
+            return;
+        }
+        qualityUrls = intent.getStringArrayExtra(EXTRA_QUALITY_URLS);
+        qualityLabels = intent.getStringArrayExtra(EXTRA_QUALITY_LABELS);
+        if (qualityUrls == null || qualityUrls.length == 0) {
+            qualityUrls = null;
+            qualityLabels = null;
+            return;
+        }
+        if (qualityLabels == null || qualityLabels.length != qualityUrls.length) {
+            qualityLabels = new String[qualityUrls.length];
+            for (int i = 0; i < qualityUrls.length; i++) {
+                qualityLabels[i] = "Source " + (i + 1);
+            }
+        }
+    }
+
+    private void showQualityDialog() {
+        if (qualityUrls != null && qualityUrls.length > 1) {
+            int checked = findCurrentSourceIndex();
+            new AlertDialog.Builder(this)
+                    .setTitle("Video quality")
+                    .setSingleChoiceItems(qualityLabels, checked, (dialog, which) -> {
+                        if (which < 0 || which >= qualityUrls.length) return;
+                        dialog.dismiss();
+                        switchSourceQuality(which);
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+            return;
+        }
+
+        if (usingVlc) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Video quality")
+                    .setMessage("Original quality\n\nThis file has one video source. Miracle can switch quality when multiple source files are available.")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+
+        showAdaptiveQualityDialog();
+    }
+
+    private void showAdaptiveQualityDialog() {
+        if (player == null) {
+            showToast("Video quality is not available yet");
+            return;
+        }
+
+        List<Integer> heights = getAvailableVideoHeights();
+        if (heights.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle("Video quality")
+                    .setMessage("Original quality\n\nNo alternate video tracks were exposed by this source.")
+                    .setPositiveButton("OK", null)
+                    .show();
+            return;
+        }
+
+        String[] labels = new String[heights.size() + 1];
+        labels[0] = "Auto";
+        int checked = selectedQualityHeight == 0 ? 0 : -1;
+        for (int i = 0; i < heights.size(); i++) {
+            labels[i + 1] = heights.get(i) + "p";
+            if (heights.get(i) == selectedQualityHeight) checked = i + 1;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Video quality")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    int height = which == 0 ? 0 : heights.get(which - 1);
+                    applyAdaptiveQualityHeight(height);
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private List<Integer> getAvailableVideoHeights() {
+        Set<Integer> unique = new LinkedHashSet<>();
+        if (player != null) {
+            Tracks tracks = player.getCurrentTracks();
+            if (tracks != null) {
+                for (Tracks.Group group : tracks.getGroups()) {
+                    if (group.getType() != C.TRACK_TYPE_VIDEO) continue;
+                    for (int i = 0; i < group.length; i++) {
+                        int height = group.getTrackFormat(i).height;
+                        if (height > 0) unique.add(height);
+                    }
+                }
+            }
+        }
+        List<Integer> heights = new ArrayList<>(unique);
+        Collections.sort(heights, Collections.reverseOrder());
+        return heights;
+    }
+
+    private void applySavedQualityPreference() {
+        TrackSelectionParameters.Builder builder = trackSelectionParameters.buildUpon();
+        builder.clearVideoSizeConstraints();
+        if (selectedQualityHeight > 0) {
+            builder.setMaxVideoSize(Integer.MAX_VALUE, selectedQualityHeight);
+            builder.setForceHighestSupportedBitrate(true);
+        } else {
+            builder.setForceHighestSupportedBitrate(false);
+        }
+        trackSelectionParameters = builder.build();
+    }
+
+    private void applyAdaptiveQualityHeight(int height) {
+        if (player == null) return;
+        selectedQualityHeight = Math.max(0, height);
+        getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .edit().putInt(QUALITY_HEIGHT_KEY, selectedQualityHeight).apply();
+
+        TrackSelectionParameters.Builder builder =
+                player.getTrackSelectionParameters().buildUpon();
+        builder.clearVideoSizeConstraints();
+        if (selectedQualityHeight > 0) {
+            builder.setMaxVideoSize(Integer.MAX_VALUE, selectedQualityHeight);
+            builder.setForceHighestSupportedBitrate(true);
+        } else {
+            builder.setForceHighestSupportedBitrate(false);
+        }
+        trackSelectionParameters = builder.build();
+        player.setTrackSelectionParameters(trackSelectionParameters);
+        updateControlLabels();
+        showFeedback("Quality • " +
+                (selectedQualityHeight == 0 ? "Auto" : selectedQualityHeight + "p"));
+    }
+
+    private int findCurrentSourceIndex() {
+        if (qualityUrls == null || currentUrl == null) return -1;
+        for (int i = 0; i < qualityUrls.length; i++) {
+            if (currentUrl.equals(qualityUrls[i])) return i;
+        }
+        return -1;
+    }
+
+    private String getCurrentQualityLabel() {
+        int index = findCurrentSourceIndex();
+        if (index >= 0 && qualityLabels != null && index < qualityLabels.length) {
+            String label = qualityLabels[index];
+            if (label != null && !label.trim().isEmpty()) return label;
+        }
+        if (selectedQualityHeight > 0) return selectedQualityHeight + "p";
+        return "Quality";
+    }
+
+    private void switchSourceQuality(int index) {
+        if (qualityUrls == null || index < 0 || index >= qualityUrls.length) return;
+        String newUrl = qualityUrls[index];
+        if (newUrl == null || newUrl.trim().isEmpty()) return;
+        if (newUrl.equals(currentUrl)) {
+            updateControlLabels();
+            return;
+        }
+
+        long position = getPlaybackPosition();
+        boolean playWhenReady = isPlayingRequested();
+        saveResumePosition();
+        releaseExoPlayer();
+        releaseVlcPlayer();
+
+        currentUrl = newUrl;
+        getIntent().putExtra("url", newUrl);
+        startItemIndex = 0;
+        startPosition = position;
+        startAutoPlay = playWhenReady;
+        softwareFallbackScheduled = false;
+        initializePlayer();
+        updateControlLabels();
+
+        String label = qualityLabels != null && index < qualityLabels.length
+                ? qualityLabels[index] : "Source " + (index + 1);
+        showFeedback("Quality • " + label);
     }
 
     private void saveResumePosition() {
@@ -825,7 +1139,9 @@ public class PlayerActivity extends AppCompatActivity
 
         @Override
         public void onTracksChanged(Tracks tracks) {
-            if (tracks == null || hasHardwareHevcDecoder()) return;
+            if (tracks == null) return;
+            updateControlLabels();
+            if (hasHardwareHevcDecoder()) return;
             for (Tracks.Group group : tracks.getGroups()) {
                 for (int i = 0; i < group.length; i++) {
                     String mime = group.getTrackFormat(i).sampleMimeType;
