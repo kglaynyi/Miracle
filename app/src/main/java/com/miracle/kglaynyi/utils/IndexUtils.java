@@ -22,6 +22,7 @@ public class IndexUtils {
         Context appContext = context.getApplicationContext();
 
         new Thread(() -> {
+            purgeUnsupportedSources(appContext);
             List<IndexLink> indexes = DatabaseClient.getInstance(appContext)
                     .getAppDatabase().indexLinksDao().getAllEnabled();
             if (indexes == null) return;
@@ -123,7 +124,7 @@ public class IndexUtils {
 
                 if (selectedFolders.isEmpty()) {
                     publishProgress(id, listener, GdiJsIndexClient.Progress.failed(
-                            "No folders selected. Open Manage Sources → Folders."));
+                            "No folders selected. Open Manage Indexes → Folders."));
                     return;
                 }
 
@@ -151,13 +152,14 @@ public class IndexUtils {
 
     public static boolean deleteIndex(Context mContext, IndexLink indexLink) {
         Thread thread = new Thread(() -> {
-            if (indexLink.getFolderType().equals("Movies") || indexLink.getFolderType().equals("Movies + TV Shows")) {
+            String folderType = indexLink.getFolderType() == null ? "Movies + TV Shows" : indexLink.getFolderType();
+            if (folderType.equals("Movies") || folderType.equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext)
                         .getAppDatabase()
                         .movieDao()
                         .deleteAllFromthisIndex(indexLink.getId());
             }
-            if (indexLink.getFolderType().equals("TVShows") || indexLink.getFolderType().equals("Movies + TV Shows")) {
+            if (folderType.equals("TVShows") || folderType.equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext)
                         .getAppDatabase()
                         .episodeDao()
