@@ -46,6 +46,8 @@ public final class GdiJsIndexClient {
     private static final int READ_TIMEOUT_MS = 30000;
     private static final int MAX_PAGES_PER_FOLDER = 1000;
     private static final int MAX_FOLDERS = 10000;
+    private static final int MAX_FOLDER_PICKER_PAGES = 50;
+    private static final long FOLDER_PICKER_TIMEOUT_MS = 45000L;
     private static final int NETWORK_RETRY_COUNT = 4;
     private static final long NETWORK_RETRY_BASE_DELAY_MS = 2000L;
     private static final String DEFAULT_DRIVE_PREFIX = "0:/";
@@ -265,45 +267,47 @@ public final class GdiJsIndexClient {
         Session session = loginWithRetry(baseUrl, username, password, null);
         if (!session.success) throw new IOException(session.message);
 
+        // Folder selection must be fast. Only enumerate direct children of the
+        // configured GDI-JS root. A selected parent is scanned recursively later.
         List<FolderOption> result = new ArrayList<>();
         result.add(new FolderOption("/", "Root (entire index)"));
-        Set<String> visited = new HashSet<>();
-        discoverFolderOptions(getDefaultApiRoot(baseUrl), "", session.cookie, visited, result);
-        return result;
-    }
 
-    private static void discoverFolderOptions(String folderUrl, String relativePath, String cookie,
-                                              Set<String> visited, List<FolderOption> output)
-            throws Exception {
-        if (visited.size() >= MAX_FOLDERS) {
-            throw new IOException("Index contains too many folders to list safely");
-        }
-        if (!visited.add(folderUrl)) return;
-
+        Set<String> seenNames = new HashSet<>();
+        String folderUrl = getDefaultApiRoot(baseUrl);
         String pageToken = "";
         int pageIndex = 0;
-        for (int page = 0; page < MAX_PAGES_PER_FOLDER; page++) {
-            ResFormat result = fetchPage(folderUrl, cookie, pageToken, pageIndex);
-            if (result == null || result.getData() == null) return;
+        long deadline = System.currentTimeMillis() + FOLDER_PICKER_TIMEOUT_MS;
 
-            List<File> files = result.getData().getFiles();
+        for (int page = 0; page < MAX_FOLDER_PICKER_PAGES; page++) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new SocketTimeoutException(
+                        "Folder list took too long. Try again or check the GDI-JS index.");
+            }
+
+            ResFormat pageResult = fetchPage(folderUrl, session.cookie, pageToken, pageIndex);
+            if (pageResult == null || pageResult.getData() == null) break;
+
+            List<File> files = pageResult.getData().getFiles();
             if (files != null) {
                 for (File file : files) {
                     if (file == null || !isFolder(file) || file.getName() == null) continue;
-                    String childPath = relativePath.isEmpty()
-                            ? file.getName()
-                            : relativePath + "/" + file.getName();
-                    output.add(new FolderOption(childPath, childPath));
-                    discoverFolderOptions(appendPath(folderUrl, file.getName(), true),
-                            childPath, cookie, visited, output);
+                    String name = file.getName().trim();
+                    if (name.isEmpty() || !seenNames.add(name)) continue;
+                    result.add(new FolderOption(name, name));
                 }
             }
 
-            String next = result.getNextPageToken();
-            if (next == null || next.trim().isEmpty()) break;
+            String next = pageResult.getNextPageToken();
+            if (next == null || next.trim().isEmpty()) return result;
             pageToken = next;
             pageIndex++;
         }
+
+        if (!pageToken.trim().isEmpty()) {
+            throw new IOException(
+                    "Too many items in the index root to list safely. Move media into top-level folders.");
+        }
+        return result;
     }
 
     private static String buildFolderUrl(String apiRoot, String relativePath) {
