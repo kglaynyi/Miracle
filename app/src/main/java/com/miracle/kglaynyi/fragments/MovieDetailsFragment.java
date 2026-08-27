@@ -433,35 +433,6 @@ public class MovieDetailsFragment extends BaseFragment{
             });
         }
 
-    private void attachQualitySources(Intent intent) {
-        if (intent == null || movieFileList == null || movieFileList.size() < 2) return;
-
-        ArrayList<String> urls = new ArrayList<>();
-        ArrayList<String> labels = new ArrayList<>();
-        for (Movie file : movieFileList) {
-            if (file == null || file.getUrlString() == null || file.getUrlString().trim().isEmpty()) continue;
-            urls.add(file.getUrlString());
-            labels.add(buildQualityLabel(file.getFileName(), urls.size()));
-        }
-        if (urls.size() < 2) return;
-
-        intent.putExtra(PlayerActivity.EXTRA_QUALITY_URLS, urls.toArray(new String[0]));
-        intent.putExtra(PlayerActivity.EXTRA_QUALITY_LABELS, labels.toArray(new String[0]));
-    }
-
-    private String buildQualityLabel(String fileName, int sourceNumber) {
-        String quality = fileName == null ? null : MovieQualityExtractor.extractQualtiy(fileName);
-        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.US);
-        String codec = "";
-        if (lower.contains("x265") || lower.contains("h265") || lower.contains("h.265") || lower.contains("hevc")) {
-            codec = " • HEVC";
-        } else if (lower.contains("x264") || lower.contains("h264") || lower.contains("h.264") || lower.contains("avc")) {
-            codec = " • H.264";
-        }
-        if (quality != null && !quality.trim().isEmpty()) return quality + codec;
-        return "Source " + sourceNumber + codec;
-    }
-
 //        Start download
         download.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -612,6 +583,36 @@ public class MovieDetailsFragment extends BaseFragment{
         });
         thread.start();
     }
+
+    private void attachQualitySources(Intent intent) {
+        if (intent == null || movieFileList == null || movieFileList.size() < 2) return;
+
+        ArrayList<String> urls = new ArrayList<>();
+        ArrayList<String> labels = new ArrayList<>();
+        for (Movie file : movieFileList) {
+            if (file == null || file.getUrlString() == null || file.getUrlString().trim().isEmpty()) continue;
+            urls.add(file.getUrlString());
+            labels.add(buildQualityLabel(file.getFileName(), urls.size()));
+        }
+        if (urls.size() < 2) return;
+
+        intent.putExtra(PlayerActivity.EXTRA_QUALITY_URLS, urls.toArray(new String[0]));
+        intent.putExtra(PlayerActivity.EXTRA_QUALITY_LABELS, labels.toArray(new String[0]));
+    }
+
+    private String buildQualityLabel(String fileName, int sourceNumber) {
+        String quality = fileName == null ? null : MovieQualityExtractor.extractQualtiy(fileName);
+        String lower = fileName == null ? "" : fileName.toLowerCase(Locale.US);
+        String codec = "";
+        if (lower.contains("x265") || lower.contains("h265") || lower.contains("h.265") || lower.contains("hevc")) {
+            codec = " • HEVC";
+        } else if (lower.contains("x264") || lower.contains("h264") || lower.contains("h.264") || lower.contains("avc")) {
+            codec = " • H.264";
+        }
+        if (quality != null && !quality.trim().isEmpty()) return quality + codec;
+        return "Source " + sourceNumber + codec;
+    }
+
 
     private void loadMovieFilesRecycler() {
         setMyOnClickLiseners();
