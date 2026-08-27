@@ -85,4 +85,10 @@ public interface EpisodeDao {
 
     @Query("DELETE FROM Episode WHERE gd_id =:id")
     void deleteByGdId(String id);
+    @Query("SELECT * FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size ORDER BY idForDB DESC LIMIT 1")
+    Episode findByIndexFileAndSize(int indexId, String fileName, String size);
+
+    @Query("DELETE FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size")
+    int deleteByIndexFileAndSize(int indexId, String fileName, String size);
+
 }
