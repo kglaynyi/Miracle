@@ -7,6 +7,7 @@ import android.content.pm.ActivityInfo;
 import android.media.AudioManager;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
+import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,9 +19,13 @@ import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.view.ViewGroup;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
@@ -100,6 +105,8 @@ public class PlayerActivity extends AppCompatActivity
     private TextView decoderBadge;
 
     private View vlcController;
+    private View exoSafeControls;
+    private View exoBuiltInController;
     private Button vlcAudioTracks;
     private Button vlcSubtitleTracks;
     private Button vlcPlayPause;
@@ -159,6 +166,7 @@ public class PlayerActivity extends AppCompatActivity
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
         decorView.setSystemUiVisibility(uiOptions);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        enableDisplayCutoutPlayback();
 
         dataSourceFactory = DemoUtil.getDataSourceFactory(this);
         setContentView(R.layout.activity_player);
@@ -169,6 +177,9 @@ public class PlayerActivity extends AppCompatActivity
         decoderBadge = findViewById(R.id.decoder_badge);
 
         vlcController = findViewById(R.id.vlc_controller);
+        exoSafeControls = findViewById(R.id.exo_safe_controls);
+        exoBuiltInController = playerView.findViewById(
+                com.google.android.exoplayer2.ui.R.id.exo_controller);
         vlcAudioTracks = findViewById(R.id.vlc_audio_tracks);
         vlcSubtitleTracks = findViewById(R.id.vlc_subtitle_tracks);
         vlcPlayPause = findViewById(R.id.vlc_play_pause);
@@ -222,6 +233,7 @@ public class PlayerActivity extends AppCompatActivity
         View.OnTouchListener touchListener = (v, event) -> gestureDetector.onTouchEvent(event);
         playerView.setOnTouchListener(touchListener);
         vlcVideoLayout.setOnTouchListener(touchListener);
+        installCutoutSafeInsets();
 
         if (savedInstanceState != null) {
             Bundle trackBundle = savedInstanceState.getBundle(KEY_TRACK_SELECTION_PARAMETERS);
@@ -235,6 +247,91 @@ public class PlayerActivity extends AppCompatActivity
             trackSelectionParameters = new TrackSelectionParameters.Builder(this).build();
             clearStartPosition();
         }
+    }
+
+    private void enableDisplayCutoutPlayback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return;
+        WindowManager.LayoutParams attributes = getWindow().getAttributes();
+        attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        getWindow().setAttributes(attributes);
+    }
+
+    private void installCutoutSafeInsets() {
+        View root = findViewById(R.id.root);
+        if (root == null) return;
+
+        final int baseSide = dpToPx(14);
+        final int baseTop = dpToPx(14);
+        final int baseBottom = dpToPx(10);
+
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int safeLeft = 0;
+            int safeTop = 0;
+            int safeRight = 0;
+            int safeBottom = 0;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                    && insets.getDisplayCutout() != null) {
+                safeLeft = Math.max(safeLeft, insets.getDisplayCutout().getSafeInsetLeft());
+                safeTop = Math.max(safeTop, insets.getDisplayCutout().getSafeInsetTop());
+                safeRight = Math.max(safeRight, insets.getDisplayCutout().getSafeInsetRight());
+                safeBottom = Math.max(safeBottom, insets.getDisplayCutout().getSafeInsetBottom());
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                Insets gestures = insets.getSystemGestureInsets();
+                safeLeft = Math.max(safeLeft, gestures.left);
+                safeRight = Math.max(safeRight, gestures.right);
+                safeBottom = Math.max(safeBottom, gestures.bottom);
+            }
+
+            applySafeMargins(exoSafeControls,
+                    baseSide + safeLeft,
+                    baseTop + safeTop,
+                    baseSide + safeRight,
+                    baseTop);
+            applySafeMargins(decoderBadge,
+                    baseSide,
+                    baseTop + safeTop,
+                    baseSide + safeRight,
+                    baseTop);
+
+            if (vlcController != null) {
+                vlcController.setPadding(
+                        baseSide + safeLeft,
+                        dpToPx(8),
+                        baseSide + safeRight,
+                        baseBottom + safeBottom);
+            }
+
+            if (exoBuiltInController != null) {
+                exoBuiltInController.setPadding(
+                        safeLeft,
+                        safeTop,
+                        safeRight,
+                        safeBottom);
+            }
+
+            return insets;
+        });
+        root.requestApplyInsets();
+    }
+
+    private void applySafeMargins(View target, int left, int top, int right, int bottom) {
+        if (target == null) return;
+        ViewGroup.LayoutParams raw = target.getLayoutParams();
+        if (!(raw instanceof FrameLayout.LayoutParams)) return;
+        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) raw;
+        params.leftMargin = left;
+        params.topMargin = top;
+        params.rightMargin = right;
+        params.bottomMargin = bottom;
+        target.setLayoutParams(params);
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
     }
 
     @Override
