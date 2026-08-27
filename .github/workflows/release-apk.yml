@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Makes ExoPlayer controls fully transparent over video by removing the full-screen dim layer and bottom control gradients. Fit, Quality, and subtitle-size controls now follow ExoPlayer controller visibility and auto-hide after 3 seconds instead of remaining permanently visible. Includes the Home tab lifecycle, fast folder picker, duplicate-source, and punch-hole fixes."
+          NOTES="Major Miracle media experience overhaul: persistent GDI-JS scan checkpoints and resume, cache retention when folders change, stable resume positions across expiring signed URLs, raw source URLs hidden behind Play and Download controls, named Downloads/Miracle downloads, redesigned movie and TV detail pages with TMDB cast/crew and horizontal episode cards, next-episode playback, and a new VIDEO/AUDIO/SUBTITLE player panel with aspect controls, playback speed, source quality, audio/subtitle selection, subtitle sizing, and per-show intro/end auto-skip settings. Includes safe Room migrations that preserve the existing media cache."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
             gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
