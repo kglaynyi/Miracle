@@ -427,9 +427,15 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
                         android:fontFamily="@font/jost_regular"
-                        android:text="Tap AUDIO above to choose a track directly."
+                        android:text="Audio track"
                         android:textColor="#CCFFFFFF"
                         android:textSize="16sp" />
+
+                    <LinearLayout
+                        android:id="@+id/audio_track_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -444,9 +450,15 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
                         android:fontFamily="@font/jost_regular"
-                        android:text="Tap SUBTITLE above to choose a track directly. Adjust size below."
+                        android:text="Subtitle track"
                         android:textColor="#CCFFFFFF"
                         android:textSize="16sp" />
+
+                    <LinearLayout
+                        android:id="@+id/subtitle_track_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
 
                     <com.miracle.kglaynyi.player.SubtitleSizeButton
                         android:id="@+id/panel_subtitle_size"
