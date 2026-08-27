@@ -112,13 +112,13 @@ public class IndexUtils {
 
     public static boolean deleteIndex(Context mContext, IndexLink indexLink) {
         Thread thread = new Thread(() -> {
-            if (indexLink.getFolderType().equals("Movies")) {
+            if (indexLink.getFolderType().equals("Movies") || indexLink.getFolderType().equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext)
                         .getAppDatabase()
                         .movieDao()
                         .deleteAllFromthisIndex(indexLink.getId());
             }
-            if (indexLink.getFolderType().equals("TVShows")) {
+            if (indexLink.getFolderType().equals("TVShows") || indexLink.getFolderType().equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext)
                         .getAppDatabase()
                         .episodeDao()
@@ -176,12 +176,15 @@ public class IndexUtils {
     public static int getNoOfMedia(Context mContext, IndexLink t) {
         final int[] result = new int[]{0};
         Thread thread = new Thread(() -> {
-            if (t.getFolderType() != null && t.getFolderType().equals("Movies")) {
+            if (t.getFolderType() != null && (t.getFolderType().equals("Movies") || t.getFolderType().equals("Movies + TV Shows"))) {
                 result[0] = DatabaseClient.getInstance(mContext)
                         .getAppDatabase().movieDao().getNoOfMovies(t.getId());
             }
             if (t.getFolderType() != null && t.getFolderType().equals("TVShows")) {
                 result[0] = DatabaseClient.getInstance(mContext)
+                        .getAppDatabase().episodeDao().getNoOfShows(t.getId());
+            } else if (t.getFolderType() != null && t.getFolderType().equals("Movies + TV Shows")) {
+                result[0] += DatabaseClient.getInstance(mContext)
                         .getAppDatabase().episodeDao().getNoOfShows(t.getId());
             }
         });
@@ -196,11 +199,11 @@ public class IndexUtils {
 
     public static void disableIndex(Context mContext, IndexLink indexLink) {
         new Thread(() -> {
-            if (indexLink.getFolderType().equals("Movies")) {
+            if (indexLink.getFolderType().equals("Movies") || indexLink.getFolderType().equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext).getAppDatabase()
                         .movieDao().disableFromThisIndex(indexLink.getId());
             }
-            if (indexLink.getFolderType().equals("TVShows")) {
+            if (indexLink.getFolderType().equals("TVShows") || indexLink.getFolderType().equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext).getAppDatabase()
                         .episodeDao().disableFromThisIndex(indexLink.getId());
             }
