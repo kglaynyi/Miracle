@@ -47,7 +47,7 @@ android {
     }
 }
 
-// Miracle v1.0.31
+// Miracle v1.0.31 - direct inline audio/subtitle selection
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.1.5'
 
