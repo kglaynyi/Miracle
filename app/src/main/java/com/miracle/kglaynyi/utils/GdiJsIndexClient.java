@@ -618,7 +618,7 @@ public final class GdiJsIndexClient {
         }
     }
 
-    private static boolean shouldTreatAsTv(String folderUrl, String fileName,
+    static boolean shouldTreatAsTv(String folderUrl, String fileName,
                                              boolean selectedTvShows) {
         String path = (folderUrl == null ? "" : folderUrl)
                 .replace("%20", " ").toLowerCase();
@@ -653,11 +653,11 @@ public final class GdiJsIndexClient {
         return seriesFolder && (numberOnlyEpisode || seasonFolder);
     }
 
-    private static boolean isTmdbConfigured() {
+    static boolean isTmdbConfigured() {
         return TMDB_API_KEY != null && !TMDB_API_KEY.trim().isEmpty();
     }
 
-    private static String fallbackMovieTitle(String fileName) {
+    static String fallbackMovieTitle(String fileName) {
         if (fileName == null || fileName.trim().isEmpty()) return "Untitled Video";
 
         try {
