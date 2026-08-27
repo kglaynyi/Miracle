@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Player UI cleanup based on device testing: removes the old Fit, Quality, and Sub 22 overlay controls, keeps all playback settings under the three-dot VIDEO/AUDIO/SUBTITLE panel, opens audio and subtitle track selection directly from their tabs with no extra button, adds an in-panel back arrow and makes Android Back close settings before leaving playback, simplifies VLC fallback controls, and fixes the movie/TV Play and Resume buttons into properly aligned light pill actions."
+          NOTES="Miracle v1.0.31 player refinement: removes the old Fit/Quality/Sub 22 overlay controls completely. AUDIO and SUBTITLE tabs now show selectable tracks directly inside the three-dot panel with no second dialog; the selected track is marked inline and Subtitle Off is available directly. The visible back arrow and Android Back close the settings panel without leaving the current movie. Movie and TV Play/Resume actions use the centered full-width light pill layout."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
             gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
