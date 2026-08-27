@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Restores VLC software-decoder seek/progress controls, adds Fit/Original/Full/Crop view modes, and refreshes Home with a light card UI, scan status, and labeled navigation."
+          NOTES="Adds MX Player-style screen modes, in-player video quality/source switching, adaptive quality selection, and subtitle size controls for ExoPlayer and VLC software playback."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber\n            gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
           else
