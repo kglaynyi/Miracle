@@ -12,8 +12,8 @@ android {
         applicationId "com.miracle.kglaynyi"
         minSdk 21
         targetSdk 32
-        versionCode 22
-        versionName "1.0.28"
+        versionCode 23
+        versionName "1.0.29"
 
         buildConfigField "String", "TMDB_API_KEY", "\"${tmdbApiKey}\""
 
@@ -47,7 +47,7 @@ android {
     }
 }
 
-// Miracle v1.0.28
+// Miracle v1.0.29
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:1.1.5'
 
