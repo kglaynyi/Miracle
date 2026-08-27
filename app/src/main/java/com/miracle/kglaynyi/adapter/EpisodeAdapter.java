@@ -116,9 +116,18 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.EpisodeA
         @Override
         public void onClick(View v) {
             int position = getBindingAdapterPosition();
-            if (position != RecyclerView.NO_POSITION && listener != null) {
-                listener.onClick(v, position);
-            }
+            if (position == RecyclerView.NO_POSITION || listener == null) return;
+
+            v.animate().cancel();
+            v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(65)
+                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(95)
+                            .withEndAction(() -> {
+                                int current = getBindingAdapterPosition();
+                                if (current != RecyclerView.NO_POSITION) {
+                                    listener.onClick(v, current);
+                                }
+                            }).start())
+                    .start();
         }
 
         private void playEpisode(Episode episode) {
