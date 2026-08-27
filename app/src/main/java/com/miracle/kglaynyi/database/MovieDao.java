@@ -89,4 +89,10 @@ public interface MovieDao {
 
     @Query("UPDATE Movie SET addToList=0 WHERE id=:movieId")
     void updateRemoveFromList(int movieId);
+    @Query("SELECT * FROM Movie WHERE index_id=:indexId AND fileName=:fileName AND size=:size ORDER BY fileidForDB DESC LIMIT 1")
+    Movie findByIndexFileAndSize(int indexId, String fileName, String size);
+
+    @Query("DELETE FROM Movie WHERE index_id=:indexId AND fileName=:fileName AND size=:size")
+    int deleteByIndexFileAndSize(int indexId, String fileName, String size);
+
 }
