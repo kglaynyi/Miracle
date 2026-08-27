@@ -161,9 +161,13 @@ public final class GoogleDriveFolderClient {
                     if (tv) {
                         DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
                                 .deleteDuplicateSources(indexId, name, sizeString, stableId);
+                        DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
+                                .deleteRepeatedStableSource(indexId, name, sizeString, stableId);
                     } else {
                         DatabaseClient.getInstance(context).getAppDatabase().movieDao()
                                 .deleteDuplicateSources(indexId, name, sizeString, stableId);
+                        DatabaseClient.getInstance(context).getAppDatabase().movieDao()
+                                .deleteRepeatedStableSource(indexId, name, sizeString, stableId);
                     }
                 }
 
