@@ -136,8 +136,6 @@ public class EpisodePreviewAdapter extends RecyclerView.Adapter<EpisodePreviewAd
                             next.getName() == null ? "Next Episode" : next.getName());
                 }
                 context.startActivity(intent);
-                new Thread(() -> DatabaseClient.getInstance(context).getAppDatabase()
-                        .episodeDao().updatePlayed(episode.getId())).start();
             });
         }, "MiracleEpisodePreviewPlay").start();
     }
