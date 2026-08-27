@@ -75,9 +75,9 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Keeps the library visible during discovery and refreshes Movies, TV Shows, and Anime automatically while scan metadata is rebuilt."
+          NOTES="Processes videos during scanning, retries temporary DNS failures, auto-classifies mixed GDI-JS folders, and adds the new Miracle app icon."
           if gh release view "$VERSION" >/dev/null 2>&1; then
-            gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
+            gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber\n            gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
           else
             gh release create "$VERSION" "Miracle-${VERSION}.apk" \
               --title "Miracle $VERSION" \
