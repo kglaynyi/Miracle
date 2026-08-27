@@ -56,10 +56,7 @@ There you go you have your media Library which sources movies from Drive.
 
 - [x] Add support for Shows
 - [x] Add animations
-- [ ] Better Player UI
-- [ ] Remember Playback Position 
 - [ ] Add Sort to Library
-- [ ] Browse by genre 
 
 
 ### **📋 Notes** :

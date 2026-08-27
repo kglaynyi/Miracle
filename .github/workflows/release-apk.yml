@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Adds one-scan Movies + TV Shows mode, faster incremental scan cache, smoother season/episode navigation, and the new Miracle startup icon."
+          NOTES="Adds genre browsing, video resume, swipe volume, double-tap 10s seeking, HEVC software fallback, smoother high/low-refresh UI, and lightweight selection animations."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber\n            gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
           else

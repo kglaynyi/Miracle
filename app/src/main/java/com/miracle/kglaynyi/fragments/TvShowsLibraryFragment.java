@@ -7,6 +7,8 @@ import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -18,24 +20,28 @@ import com.miracle.kglaynyi.adapter.MediaAdapter;
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.MyMedia;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
-import com.miracle.kglaynyi.utils.MediaClassificationUtils;
+import com.miracle.kglaynyi.utils.GenreFilterUtils;
 import com.miracle.kglaynyi.utils.IndexUtils;
+import com.miracle.kglaynyi.utils.MediaClassificationUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class TvShowsLibraryFragment extends BaseFragment {
     private RecyclerView recyclerViewTVShows;
+    private Spinner genreSpinner;
+    private MediaAdapter mediaAdapter;
+    private List<TVShow> allShows = new ArrayList<>();
     private List<TVShow> tvShowList = new ArrayList<>();
+    private String selectedGenre = GenreFilterUtils.ALL_GENRES;
+    private List<String> genreOptions = new ArrayList<>();
 
     private final Handler libraryRefreshHandler = new Handler(Looper.getMainLooper());
     private final Runnable libraryRefreshRunnable = new Runnable() {
         @Override public void run() {
             if (!isAdded() || getView() == null) return;
             showLibraryTVShows();
-            if (IndexUtils.isAnyScanRunning()) {
-                libraryRefreshHandler.postDelayed(this, 1200);
-            }
+            if (IndexUtils.isAnyScanRunning()) libraryRefreshHandler.postDelayed(this, 1600);
         }
     };
 
@@ -47,18 +53,35 @@ public class TvShowsLibraryFragment extends BaseFragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        recyclerViewTVShows = view.findViewById(R.id.recyclerLibraryTVShows);
+        genreSpinner = view.findViewById(R.id.genreFilterTVShows);
+
+        DisplayMetrics metrics = mActivity.getResources().getDisplayMetrics();
+        int columns = Math.max(1, (int) ((metrics.widthPixels / metrics.density) / 120));
+        recyclerViewTVShows.setLayoutManager(new GridLayoutManager(mActivity, columns));
+        recyclerViewTVShows.setHasFixedSize(true);
+        recyclerViewTVShows.setItemAnimator(null);
+        recyclerViewTVShows.setAlpha(0f);
+
+        MediaAdapter.OnItemClickListener listener = (v, position) -> {
+            if (position < 0 || position >= tvShowList.size()) return;
+            TvShowDetailsFragment details = new TvShowDetailsFragment(tvShowList.get(position).getId());
+            mActivity.getSupportFragmentManager().beginTransaction()
+                    .setCustomAnimations(R.anim.fade_in, R.anim.fade_out, R.anim.fade_in, R.anim.fade_out)
+                    .replace(R.id.container, details).addToBackStack(null).commit();
+        };
+        mediaAdapter = new MediaAdapter(mActivity, new ArrayList<MyMedia>(), listener);
+        recyclerViewTVShows.setAdapter(mediaAdapter);
         showLibraryTVShows();
     }
 
-    @Override
-    public void onResume() {
+    @Override public void onResume() {
         super.onResume();
         libraryRefreshHandler.removeCallbacks(libraryRefreshRunnable);
         libraryRefreshHandler.post(libraryRefreshRunnable);
     }
 
-    @Override
-    public void onPause() {
+    @Override public void onPause() {
         libraryRefreshHandler.removeCallbacks(libraryRefreshRunnable);
         super.onPause();
     }
@@ -68,27 +91,44 @@ public class TvShowsLibraryFragment extends BaseFragment {
             List<TVShow> all = DatabaseClient.getInstance(mActivity).getAppDatabase().tvShowDao().getAllByTitles();
             List<TVShow> filtered = new ArrayList<>();
             for (TVShow show : all) if (!MediaClassificationUtils.isAnime(show)) filtered.add(show);
-            tvShowList = filtered;
-            showRecycler(filtered);
+            allShows = filtered;
+            applyGenreOnUi();
         }).start();
     }
 
-    private void showRecycler(List<TVShow> list) {
+    private void applyGenreOnUi() {
         mActivity.runOnUiThread(() -> {
-            DisplayMetrics metrics = mActivity.getResources().getDisplayMetrics();
-            int columns = Math.max(1, (int) ((metrics.widthPixels / metrics.density) / 120));
-            recyclerViewTVShows = mActivity.findViewById(R.id.recyclerLibraryTVShows);
-            if (recyclerViewTVShows == null) return;
-            recyclerViewTVShows.setLayoutManager(new GridLayoutManager(mActivity, columns));
-            recyclerViewTVShows.setHasFixedSize(true);
-            MediaAdapter.OnItemClickListener listener = (view, position) -> {
-                if (position < 0 || position >= tvShowList.size()) return;
-                TvShowDetailsFragment details = new TvShowDetailsFragment(tvShowList.get(position).getId());
-                mActivity.getSupportFragmentManager().beginTransaction()
-                        .setCustomAnimations(R.anim.fade_in, R.anim.fade_out)
-                        .add(R.id.container, details).addToBackStack(null).commit();
-            };
-            recyclerViewTVShows.setAdapter(new MediaAdapter(mActivity, (List<MyMedia>)(List<?>) list, listener));
+            if (!isAdded() || getView() == null) return;
+            List<String> genres = GenreFilterUtils.collectGenres((List<? extends MyMedia>)(List<?>) allShows);
+
+            if (!genreOptions.equals(genres)) {
+                genreOptions = new ArrayList<>(genres);
+                ArrayAdapter<String> spinnerAdapter =
+                        new ArrayAdapter<>(mActivity, R.layout.item_genre_filter, genreOptions);
+                spinnerAdapter.setDropDownViewResource(R.layout.item_genre_filter);
+
+                genreSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view,
+                                                         int position, long itemId) {
+                        if (position < 0 || position >= genreOptions.size()) return;
+                        selectedGenre = genreOptions.get(position);
+                        updateVisibleList();
+                    }
+                    @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+                });
+                genreSpinner.setAdapter(spinnerAdapter);
+                int selectedIndex = Math.max(0, genreOptions.indexOf(selectedGenre));
+                genreSpinner.setSelection(selectedIndex, false);
+            }
+            updateVisibleList();
         });
+    }
+
+    private void updateVisibleList() {
+        tvShowList = GenreFilterUtils.filter(allShows, selectedGenre);
+        mediaAdapter.submitList((List<? extends MyMedia>)(List<?>) tvShowList);
+        if (recyclerViewTVShows.getAlpha() == 0f) {
+            recyclerViewTVShows.animate().alpha(1f).setDuration(180).start();
+        }
     }
 }

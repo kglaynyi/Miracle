@@ -36,7 +36,8 @@ public final class DemoUtil {
         @DefaultRenderersFactory.ExtensionRendererMode
         int extensionRendererMode = DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON;
         return new DefaultRenderersFactory(context.getApplicationContext())
-                .setExtensionRendererMode(extensionRendererMode);
+                .setExtensionRendererMode(extensionRendererMode)
+                .setEnableDecoderFallback(true);
     }
 
     public static synchronized DataSource.Factory getHttpDataSourceFactory(Context context) {
