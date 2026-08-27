@@ -515,9 +515,13 @@ public final class GdiJsIndexClient {
                 if (treatAsTv) {
                     DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
                             .deleteDuplicateSources(indexId, file.getName(), file.getSize(), id);
+                    DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
+                            .deleteRepeatedStableSource(indexId, file.getName(), file.getSize(), id);
                 } else {
                     DatabaseClient.getInstance(context).getAppDatabase().movieDao()
                             .deleteDuplicateSources(indexId, file.getName(), file.getSize(), id);
+                    DatabaseClient.getInstance(context).getAppDatabase().movieDao()
+                            .deleteRepeatedStableSource(indexId, file.getName(), file.getSize(), id);
                 }
             }
 
