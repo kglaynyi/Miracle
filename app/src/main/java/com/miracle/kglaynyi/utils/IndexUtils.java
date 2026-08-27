@@ -214,11 +214,11 @@ public class IndexUtils {
 
     public static void enableIndex(Context mContext, IndexLink indexLink) {
         new Thread(() -> {
-            if (indexLink.getFolderType().equals("Movies")) {
+            if (indexLink.getFolderType().equals("Movies") || indexLink.getFolderType().equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext).getAppDatabase()
                         .movieDao().enableFromThisIndex(indexLink.getId());
             }
-            if (indexLink.getFolderType().equals("TVShows")) {
+            if (indexLink.getFolderType().equals("TVShows") || indexLink.getFolderType().equals("Movies + TV Shows")) {
                 DatabaseClient.getInstance(mContext).getAppDatabase()
                         .episodeDao().enableFromThisIndex(indexLink.getId());
             }
