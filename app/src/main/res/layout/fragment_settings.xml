@@ -58,7 +58,7 @@
                     android:letterSpacing="0.001"
                     android:paddingStart="32dp"
                     android:paddingEnd="32dp"
-                    android:text="Add Source"
+                    android:text="Add Index"
                     android:textAlignment="viewStart"
 
                     android:textAllCaps="false"
@@ -94,7 +94,7 @@
                     android:letterSpacing="0.001"
                     android:paddingStart="32dp"
                     android:paddingEnd="32dp"
-                    android:text="Manage Sources"
+                    android:text="Manage Indexes"
                     android:textAlignment="viewStart"
                     android:textAllCaps="false"
                     android:textColor="@color/download_button_bg_color"
