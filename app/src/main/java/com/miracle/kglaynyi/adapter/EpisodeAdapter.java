@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,8 +27,11 @@ import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.TVShowInfo.Episode;
 import com.miracle.kglaynyi.player.PlayerActivity;
+import com.miracle.kglaynyi.utils.MediaSourceDeduplicator;
+import com.miracle.kglaynyi.utils.MovieQualityExtractor;
 import com.miracle.kglaynyi.utils.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.EpisodeAdapterHolder> {
@@ -34,6 +39,7 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.EpisodeA
     private final Context context;
     private final List<Episode> episodeList;
     private final OnItemClickListener listener;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public EpisodeAdapter(Context context, List<Episode> episodeList, OnItemClickListener listener) {
         this.context = context;
@@ -42,25 +48,20 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.EpisodeA
         setHasStableIds(true);
     }
 
-    @Override
-    public long getItemId(int position) {
+    @Override public long getItemId(int position) {
         Episode episode = episodeList.get(position);
-        String gdId = episode.getGd_id();
-        if (gdId != null && !gdId.isEmpty()) return gdId.hashCode();
-        return episode.getId();
+        return episode.getId() > 0 ? episode.getId() : episode.getIdForDB();
     }
 
-    @NonNull
-    @Override
+    @NonNull @Override
     public EpisodeAdapterHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.episode_item, parent, false);
-        return new EpisodeAdapterHolder(view);
+        return new EpisodeAdapterHolder(LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.episode_item, parent, false));
     }
 
     @Override
     public void onBindViewHolder(@NonNull EpisodeAdapterHolder holder, int position) {
         Episode episode = episodeList.get(position);
-
         holder.episodeNumber.setText(String.format("E%02d", episode.getEpisode_number()));
         holder.seasonNumber.setText(String.format("S%02d", episode.getSeason_number()));
         holder.episodeName.setText(episode.getName() == null ? "" : episode.getName());
@@ -76,32 +77,100 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.EpisodeA
                     .into(holder.episodeStill);
         }
 
-        if (episode.getRuntime() != 0) {
+        if (episode.getRuntime() > 0) {
             holder.runtime.setVisibility(View.VISIBLE);
             holder.runtime.setText(StringUtils.runtimeIntegerToString(episode.getRuntime()));
         } else {
             holder.runtime.setVisibility(View.GONE);
-            holder.runtime.setText("");
         }
 
-        holder.play.setOnClickListener(view -> holder.playEpisode(episode));
+        holder.play.setOnClickListener(v -> playEpisode(episode, position));
     }
 
-    @Override
-    public int getItemCount() {
+    private void playEpisode(Episode episode, int position) {
+        new Thread(() -> {
+            Episode best = DatabaseClient.getInstance(context).getAppDatabase()
+                    .episodeDao().byEpisodeIdLargest(episode.getId());
+            if (best == null) best = episode;
+            final Episode source = best;
+
+            List<Episode> sources = MediaSourceDeduplicator.deduplicateEpisodes(
+                    DatabaseClient.getInstance(context).getAppDatabase()
+                            .episodeDao().byEpisodeId(episode.getId()));
+            Episode next = position + 1 < episodeList.size()
+                    ? episodeList.get(position + 1)
+                    : DatabaseClient.getInstance(context).getAppDatabase().episodeDao()
+                    .getFollowingEpisode(episode.getShow_id(),
+                            episode.getSeason_number(), episode.getEpisode_number());
+
+            mainHandler.post(() -> {
+                if (source.getUrlString() == null || source.getUrlString().trim().isEmpty()) {
+                    Toast.makeText(context, "Episode source is unavailable", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                SharedPreferences prefs =
+                        context.getSharedPreferences("Settings", Context.MODE_PRIVATE);
+                if (prefs.getBoolean("EXTERNAL_SETTING", false)) {
+                    Intent external = new Intent(Intent.ACTION_VIEW, Uri.parse(source.getUrlString()));
+                    external.setDataAndType(Uri.parse(source.getUrlString()), "video/*");
+                    external.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    context.startActivity(external);
+                    return;
+                }
+
+                Intent intent = new Intent(context, PlayerActivity.class);
+                intent.putExtra("url", source.getUrlString());
+                intent.putExtra(PlayerActivity.EXTRA_RESUME_KEY, "episode:" + episode.getId());
+                intent.putExtra(PlayerActivity.EXTRA_MEDIA_GROUP_KEY,
+                        "show:" + episode.getShow_id());
+
+                if (sources != null && sources.size() > 1) {
+                    ArrayList<String> urls = new ArrayList<>();
+                    ArrayList<String> labels = new ArrayList<>();
+                    for (Episode item : sources) {
+                        if (item == null || item.getUrlString() == null
+                                || item.getUrlString().trim().isEmpty()) continue;
+                        urls.add(item.getUrlString());
+                        String quality = MovieQualityExtractor.extractQualtiy(item.getFileName());
+                        labels.add((quality == null ? "Source " + urls.size() : quality)
+                                + " • GDI-JS");
+                    }
+                    if (urls.size() > 1) {
+                        intent.putExtra(PlayerActivity.EXTRA_QUALITY_URLS,
+                                urls.toArray(new String[0]));
+                        intent.putExtra(PlayerActivity.EXTRA_QUALITY_LABELS,
+                                labels.toArray(new String[0]));
+                    }
+                }
+
+                if (next != null && next.getUrlString() != null
+                        && !next.getUrlString().trim().isEmpty()) {
+                    intent.putExtra(PlayerActivity.EXTRA_NEXT_URL, next.getUrlString());
+                    intent.putExtra(PlayerActivity.EXTRA_NEXT_RESUME_KEY,
+                            "episode:" + next.getId());
+                    intent.putExtra(PlayerActivity.EXTRA_NEXT_TITLE,
+                            next.getName() == null ? "Next Episode" : next.getName());
+                }
+                context.startActivity(intent);
+            });
+        }, "MiracleEpisodePlay").start();
+    }
+
+    @Override public int getItemCount() {
         return episodeList == null ? 0 : episodeList.size();
     }
 
     public class EpisodeAdapterHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
-        TextView episodeName;
-        ImageView episodeStill;
-        TextView seasonNumber;
-        TextView episodeNumber;
-        TextView runtime;
-        TextView overview;
-        Button play;
+        final TextView episodeName;
+        final ImageView episodeStill;
+        final TextView seasonNumber;
+        final TextView episodeNumber;
+        final TextView runtime;
+        final TextView overview;
+        final Button play;
 
-        public EpisodeAdapterHolder(@NonNull View itemView) {
+        EpisodeAdapterHolder(@NonNull View itemView) {
             super(itemView);
             episodeName = itemView.findViewById(R.id.episodeNameInItem);
             episodeStill = itemView.findViewById(R.id.episodeStill);
@@ -113,45 +182,10 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.EpisodeA
             itemView.setOnClickListener(this);
         }
 
-        @Override
-        public void onClick(View v) {
+        @Override public void onClick(View v) {
             int position = getBindingAdapterPosition();
             if (position == RecyclerView.NO_POSITION || listener == null) return;
-
-            v.animate().cancel();
-            v.animate().scaleX(0.97f).scaleY(0.97f).setDuration(65)
-                    .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(95)
-                            .withEndAction(() -> {
-                                int current = getBindingAdapterPosition();
-                                if (current != RecyclerView.NO_POSITION) {
-                                    listener.onClick(v, current);
-                                }
-                            }).start())
-                    .start();
-        }
-
-        private void playEpisode(Episode episode) {
-            SharedPreferences sharedPreferences = itemView.getContext()
-                    .getSharedPreferences("Settings", Context.MODE_PRIVATE);
-            boolean savedEXT = sharedPreferences.getBoolean("EXTERNAL_SETTING", false);
-
-            addToLastPlayed(episode.getId());
-            Uri uri = Uri.parse(episode.getUrlString());
-            if (savedEXT) {
-                Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-                intent.setDataAndType(uri, "video/*");
-                itemView.getContext().startActivity(intent);
-            } else {
-                Intent in = new Intent(itemView.getContext(), PlayerActivity.class);
-                in.putExtra("url", episode.getUrlString());
-                itemView.getContext().startActivity(in);
-                Toast.makeText(itemView.getContext(), "Play", Toast.LENGTH_SHORT).show();
-            }
-        }
-
-        private void addToLastPlayed(int id) {
-            new Thread(() -> DatabaseClient.getInstance(itemView.getContext())
-                    .getAppDatabase().episodeDao().updatePlayed(id)).start();
+            listener.onClick(v, position);
         }
     }
 
