@@ -6,14 +6,17 @@ on:
       - main
     paths:
       - '.github/workflows/release-apk.yml'
-      - 'app/build.gradle'
-      - 'app/src/main/java/com/miracle/kglaynyi/Constants.java'
+      - 'app/**'
     tags:
       - 'v*'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: miracle-apk-release
+  cancel-in-progress: true
 
 jobs:
   release:
