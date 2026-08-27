@@ -20,13 +20,15 @@ jobs:
           token: ${{ github.token }}
 
       - name: Apply patch
-        run: python3 tools/patch_inline_player_tracks.py
+        run: |
+          python3 tools/patch_inline_player_tracks.py
+          git checkout -- .github/workflows/release-apk.yml
 
       - name: Commit patch
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/com/miracle/kglaynyi/player/PlayerActivity.java app/src/main/res/layout/activity_player.xml app/build.gradle .github/workflows/release-apk.yml
+          git add app/src/main/java/com/miracle/kglaynyi/player/PlayerActivity.java app/src/main/res/layout/activity_player.xml app/build.gradle
           git commit -m "Refine direct audio subtitle player controls"
           git push origin HEAD:main
