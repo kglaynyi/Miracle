@@ -98,7 +98,13 @@ public interface EpisodeDao {
     @Query("DELETE FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND gd_id=:stableId AND idForDB != (SELECT MAX(idForDB) FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND gd_id=:stableId)")
     int deleteRepeatedStableSource(int indexId, String fileName, String size, String stableId);
 
-    @Query("UPDATE Episode SET urlString=:url, fileName=:fileName, size=:size, mimeType=:mimeType, modifiedTime=:modifiedTime WHERE gd_id=:stableId")
-    void updateSourceMetadata(String stableId, String url, String fileName, String size, String mimeType, Date modifiedTime);
+    @Query("UPDATE Episode SET urlString=:url, fileName=:fileName, size=:size, mimeType=:mimeType, modifiedTime=:modifiedTime, folder_path=:folderPath WHERE gd_id=:stableId")
+    void updateSourceMetadata(String stableId, String url, String fileName, String size, String mimeType, Date modifiedTime, String folderPath);
+
+    @Query("DELETE FROM Episode WHERE index_id=:indexId AND (folder_path=:folderPath OR folder_path LIKE :folderPrefix)")
+    int deleteByFolderPrefix(int indexId, String folderPath, String folderPrefix);
+
+    @Query("SELECT * FROM Episode WHERE index_id=:indexId AND (folder_path=:folderPath OR folder_path LIKE :folderPrefix)")
+    List<Episode> getByFolderPrefix(int indexId, String folderPath, String folderPrefix);
 
 }
