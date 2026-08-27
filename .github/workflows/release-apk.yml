@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Removes the Google Drive direct-login source, keeps GDI-JS as the only index method, adds post-index multi-folder selection with saved choices, lets users add or change folders later from Manage Indexes, scans only selected folders, and keeps duplicate-source and punch-hole player fixes."
+          NOTES="Fixes the GDI-JS folder picker force-stop/loading loop by removing full recursive folder discovery. The selector now loads only top-level folders, selected folders are scanned recursively, loading fails fast with a timeout and Retry button, multi-folder selections remain saved, and Google Drive direct login remains removed."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber
             gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
