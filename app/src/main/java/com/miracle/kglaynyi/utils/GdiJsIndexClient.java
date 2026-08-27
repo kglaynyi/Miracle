@@ -119,6 +119,21 @@ public final class GdiJsIndexClient {
         }
     }
 
+    public static final class FolderOption {
+        public final String path;
+        public final String displayPath;
+
+        public FolderOption(String path, String displayPath) {
+            this.path = path;
+            this.displayPath = displayPath;
+        }
+
+        @Override
+        public String toString() {
+            return displayPath;
+        }
+    }
+
     private static final class Session {
         final boolean success;
         final String cookie;
@@ -200,6 +215,108 @@ public final class GdiJsIndexClient {
                         + stats[4] + " reused from cache",
                 total, stats[0], stats[1]));
         return total;
+    }
+
+    public static int scanSelectedFolders(String rawBaseUrl, String username, String password,
+                                          boolean tvShows, int indexId, List<String> selectedFolders,
+                                          ProgressListener listener) throws Exception {
+        if (selectedFolders == null || selectedFolders.isEmpty()) {
+            throw new IOException("No folders selected. Choose at least one folder first.");
+        }
+
+        emit(listener, Progress.status("Connecting to index…", -1,
+                0, 0, 0, 0, 0, 0));
+
+        String baseUrl = normalizeBaseUrl(rawBaseUrl);
+        Session session = loginWithRetry(baseUrl, username, password, listener);
+        if (!session.success) throw new IOException(session.message);
+
+        String apiRoot = getDefaultApiRoot(baseUrl);
+        Set<String> visitedFolders = new HashSet<>();
+        Set<String> seenIds = new HashSet<>();
+        Map<String, CachedEntry> cache = buildScanCache(indexId);
+        int[] stats = new int[]{0, 0, 0, 0, 0};
+
+        // Root selection already includes every subfolder, so ignore any other
+        // selected paths in that case.
+        if (selectedFolders.contains("/")) {
+            discoverAndProcessFolder(apiRoot, baseUrl, session.cookie, visitedFolders,
+                    seenIds, cache, stats, indexId, tvShows, listener);
+        } else {
+            for (String selectedPath : selectedFolders) {
+                if (selectedPath == null || selectedPath.trim().isEmpty()) continue;
+                String folderUrl = buildFolderUrl(apiRoot, selectedPath);
+                discoverAndProcessFolder(folderUrl, baseUrl, session.cookie, visitedFolders,
+                        seenIds, cache, stats, indexId, tvShows, listener);
+            }
+        }
+
+        pruneMissingCachedMedia(cache, seenIds);
+        int total = stats[2];
+        emit(listener, Progress.done("Done • " + total + " videos • "
+                        + stats[4] + " reused from cache",
+                total, stats[0], stats[1]));
+        return total;
+    }
+
+    public static List<FolderOption> listFolders(String rawBaseUrl, String username,
+                                                 String password) throws Exception {
+        String baseUrl = normalizeBaseUrl(rawBaseUrl);
+        Session session = loginWithRetry(baseUrl, username, password, null);
+        if (!session.success) throw new IOException(session.message);
+
+        List<FolderOption> result = new ArrayList<>();
+        result.add(new FolderOption("/", "Root (entire index)"));
+        Set<String> visited = new HashSet<>();
+        discoverFolderOptions(getDefaultApiRoot(baseUrl), "", session.cookie, visited, result);
+        return result;
+    }
+
+    private static void discoverFolderOptions(String folderUrl, String relativePath, String cookie,
+                                              Set<String> visited, List<FolderOption> output)
+            throws Exception {
+        if (visited.size() >= MAX_FOLDERS) {
+            throw new IOException("Index contains too many folders to list safely");
+        }
+        if (!visited.add(folderUrl)) return;
+
+        String pageToken = "";
+        int pageIndex = 0;
+        for (int page = 0; page < MAX_PAGES_PER_FOLDER; page++) {
+            ResFormat result = fetchPage(folderUrl, cookie, pageToken, pageIndex);
+            if (result == null || result.getData() == null) return;
+
+            List<File> files = result.getData().getFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file == null || !isFolder(file) || file.getName() == null) continue;
+                    String childPath = relativePath.isEmpty()
+                            ? file.getName()
+                            : relativePath + "/" + file.getName();
+                    output.add(new FolderOption(childPath, childPath));
+                    discoverFolderOptions(appendPath(folderUrl, file.getName(), true),
+                            childPath, cookie, visited, output);
+                }
+            }
+
+            String next = result.getNextPageToken();
+            if (next == null || next.trim().isEmpty()) break;
+            pageToken = next;
+            pageIndex++;
+        }
+    }
+
+    private static String buildFolderUrl(String apiRoot, String relativePath) {
+        if (relativePath == null || relativePath.trim().isEmpty() || "/".equals(relativePath.trim())) {
+            return apiRoot;
+        }
+        String url = apiRoot;
+        String[] parts = relativePath.split("/");
+        for (String part : parts) {
+            if (part == null || part.isEmpty()) continue;
+            url = appendPath(url, part, true);
+        }
+        return url;
     }
 
     private static void discoverAndProcessFolder(String folderUrl, String rootUrl, String cookie,
@@ -451,7 +568,7 @@ public final class GdiJsIndexClient {
         }
     }
 
-    private static void clearIndexMediaForRescan(int indexId) {
+    public static void clearIndexMediaForRescan(int indexId) {
         DatabaseClient db = DatabaseClient.getInstance(context);
         db.getAppDatabase().movieDao().deleteAllFromthisIndex(indexId);
         db.getAppDatabase().episodeDao().deleteAllFromThisIndex(indexId);
