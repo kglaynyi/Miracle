@@ -14,14 +14,18 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.fragment.app.FragmentActivity;
 
 import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.model.IndexLink;
+import com.miracle.kglaynyi.fragments.SelectIndexFoldersFragment;
+import com.miracle.kglaynyi.utils.IndexFolderSelectionUtils;
 
 import java.util.List;
 
@@ -45,24 +49,33 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
     @Override
     public void onBindViewHolder(IndexViewHolder holder, int position) {
         IndexLink t = indexLinkList.get(position);
-        if ("Google Drive".equals(t.getIndexType())) {
-            String folderName = t.getUsername();
-            holder.textViewLink.setText("Selected folder • "
-                    + (folderName == null || folderName.trim().isEmpty() ? "Google Drive" : folderName));
-            holder.indexType.setText("Google Drive");
-            holder.folderType.setText("Video source");
+        holder.textViewLink.setText(t.getLink());
+        holder.indexType.setText("GDI-JS");
+        List<String> selectedFolders = IndexFolderSelectionUtils.parse(t.getSelectedFoldersJson());
+        if (selectedFolders == null) {
+            holder.folderType.setText("Root folder (legacy)");
+        } else if (selectedFolders.isEmpty()) {
+            holder.folderType.setText("No folders selected");
+        } else if (selectedFolders.size() == 1 && "/".equals(selectedFolders.get(0))) {
+            holder.folderType.setText("Root folder");
         } else {
-            holder.textViewLink.setText(t.getLink());
-            holder.indexType.setText("GDI-JS");
-            holder.folderType.setText(t.getFolderType());
+            holder.folderType.setText(selectedFolders.size() + " folders");
         }
 
         // A scan belongs to the index, not to this ViewHolder. Rebind the shared
         // progress state whenever Settings/Manage Indexes is recreated.
         bindProgress(holder, t);
 
+        holder.foldersButton.setOnClickListener(view -> openFolderSelector(holder, t));
+
         holder.refreshIndex.setOnClickListener(view -> {
             Context context = holder.itemView.getContext();
+            List<String> folders = IndexFolderSelectionUtils.parse(t.getSelectedFoldersJson());
+            if (folders != null && folders.isEmpty()) {
+                Toast.makeText(context, "Select folders before scanning", Toast.LENGTH_SHORT).show();
+                openFolderSelector(holder, t);
+                return;
+            }
             holder.refreshIndex.setEnabled(false);
             holder.noOfMedia.setText("Connecting…");
             if (holder.progressRunnable != null) mainHandler.postDelayed(holder.progressRunnable, 200);
@@ -110,6 +123,21 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
         });
     }
 
+    private void openFolderSelector(IndexViewHolder holder, IndexLink indexLink) {
+        Context context = holder.itemView.getContext();
+        if (!(context instanceof FragmentActivity)) {
+            Toast.makeText(context, "Could not open folder selector", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        FragmentActivity activity = (FragmentActivity) context;
+        SelectIndexFoldersFragment fragment = new SelectIndexFoldersFragment(indexLink);
+        activity.getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.containersettings, fragment)
+                .addToBackStack(null)
+                .commit();
+    }
+
     private void bindProgress(IndexViewHolder holder, IndexLink indexLink) {
     if (holder.progressRunnable != null) mainHandler.removeCallbacks(holder.progressRunnable);
     holder.boundIndexId = indexLink.getId();
@@ -148,6 +176,7 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
         TextView textViewLink, indexType, folderType, noOfMedia;
         ImageButton refreshIndex;
         ImageButton delete;
+        Button foldersButton;
         SwitchCompat enableIndex;
         Runnable progressRunnable;
         int boundIndexId;
@@ -160,6 +189,7 @@ public class IndexAdapter extends RecyclerView.Adapter<IndexAdapter.IndexViewHol
             noOfMedia = itemView.findViewById(R.id.noOfMedia);
             refreshIndex = itemView.findViewById(R.id.refreshButton);
             delete = itemView.findViewById(R.id.deletebutton);
+            foldersButton = itemView.findViewById(R.id.foldersButton);
             enableIndex = itemView.findViewById(R.id.enableIndexToggle);
             itemView.setOnClickListener(this);
         }
