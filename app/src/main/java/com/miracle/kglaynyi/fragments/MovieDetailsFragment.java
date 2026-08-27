@@ -612,8 +612,7 @@ public class MovieDetailsFragment extends BaseFragment{
             codec = " • H.264";
         }
         String source = "";
-        if (url != null && url.startsWith("content://")) source = " • Drive";
-        else if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) source = " • GDI-JS";
+        if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) source = " • GDI-JS";
         if (quality != null && !quality.trim().isEmpty()) return quality + codec + source;
         return "Source " + sourceNumber + codec + source;
     }
