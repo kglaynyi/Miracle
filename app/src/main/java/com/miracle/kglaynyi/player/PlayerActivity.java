@@ -539,6 +539,267 @@ public class PlayerActivity extends AppCompatActivity
         }
     }
 
+    private void readMediaIdentity(Intent intent) {
+        if (intent == null) {
+            resumeKey = null;
+            mediaGroupKey = null;
+            return;
+        }
+        resumeKey = intent.getStringExtra(EXTRA_RESUME_KEY);
+        mediaGroupKey = intent.getStringExtra(EXTRA_MEDIA_GROUP_KEY);
+    }
+
+    private String playerProfileKey() {
+        String value = mediaGroupKey;
+        if (value == null || value.trim().isEmpty()) value = resumeKey;
+        if (value == null || value.trim().isEmpty()) value = currentUrl;
+        if (value == null) value = "default";
+        return Integer.toHexString(value.hashCode());
+    }
+
+    private void loadPlayerProfile() {
+        android.content.SharedPreferences prefs =
+                getSharedPreferences(PROFILE_PREFS, MODE_PRIVATE);
+        String key = playerProfileKey();
+        autoSkipEnabled = prefs.getBoolean("auto_" + key, false);
+        introSkipSeconds = Math.max(0, prefs.getInt("intro_" + key, 0));
+        endSkipSeconds = Math.max(0, prefs.getInt("end_" + key, 0));
+        introSkipApplied = false;
+        endSkipApplied = false;
+        updateSkipUi();
+    }
+
+    private void savePlayerProfile() {
+        String key = playerProfileKey();
+        getSharedPreferences(PROFILE_PREFS, MODE_PRIVATE)
+                .edit()
+                .putBoolean("auto_" + key, autoSkipEnabled)
+                .putInt("intro_" + key, introSkipSeconds)
+                .putInt("end_" + key, endSkipSeconds)
+                .apply();
+    }
+
+    private void bindSettingsPanel() {
+        if (playerSettingsButton == null || playerSettingsPanel == null) return;
+
+        playerSettingsButton.setOnClickListener(v -> {
+            boolean opening = playerSettingsPanel.getVisibility() != View.VISIBLE;
+            playerSettingsPanel.setVisibility(opening ? View.VISIBLE : View.GONE);
+            if (opening) {
+                showSettingsTab(0);
+                playerView.showController();
+            }
+        });
+
+        tabVideo.setOnClickListener(v -> showSettingsTab(0));
+        tabAudio.setOnClickListener(v -> showSettingsTab(1));
+        tabSubtitle.setOnClickListener(v -> showSettingsTab(2));
+
+        findViewById(R.id.aspect_default).setOnClickListener(v -> setViewMode(VIEW_FIT));
+        findViewById(R.id.aspect_stretch).setOnClickListener(v -> setViewMode(VIEW_FILL));
+        findViewById(R.id.aspect_fill).setOnClickListener(v -> setViewMode(VIEW_CROP));
+        findViewById(R.id.aspect_16_9).setOnClickListener(v -> setViewMode(VIEW_16_9));
+        findViewById(R.id.aspect_4_3).setOnClickListener(v -> setViewMode(VIEW_4_3));
+
+        autoSkipSwitch.setChecked(autoSkipEnabled);
+        autoSkipSwitch.setOnCheckedChangeListener((button, checked) -> {
+            autoSkipEnabled = checked;
+            introSkipApplied = false;
+            endSkipApplied = false;
+            savePlayerProfile();
+        });
+
+        findViewById(R.id.intro_skip_minus).setOnClickListener(v -> adjustSkip(true, -5));
+        findViewById(R.id.intro_skip_plus).setOnClickListener(v -> adjustSkip(true, 5));
+        findViewById(R.id.end_skip_minus).setOnClickListener(v -> adjustSkip(false, -5));
+        findViewById(R.id.end_skip_plus).setOnClickListener(v -> adjustSkip(false, 5));
+
+        playbackSpeedButton.setOnClickListener(v -> cyclePlaybackSpeed());
+        updatePlaybackSpeedLabel();
+
+        findViewById(R.id.panel_audio_tracks).setOnClickListener(v -> showTrackSelection(false));
+        findViewById(R.id.panel_subtitle_tracks).setOnClickListener(v -> showTrackSelection(true));
+        updateAspectButtons();
+    }
+
+    private void showSettingsTab(int tab) {
+        videoSettingsSection.setVisibility(tab == 0 ? View.VISIBLE : View.GONE);
+        audioSettingsSection.setVisibility(tab == 1 ? View.VISIBLE : View.GONE);
+        subtitleSettingsSection.setVisibility(tab == 2 ? View.VISIBLE : View.GONE);
+        int active = getResources().getColor(R.color.download_button_bg_color);
+        int normal = Color.WHITE;
+        tabVideo.setTextColor(tab == 0 ? active : normal);
+        tabAudio.setTextColor(tab == 1 ? active : normal);
+        tabSubtitle.setTextColor(tab == 2 ? active : normal);
+    }
+
+    private void adjustSkip(boolean intro, int deltaSeconds) {
+        if (intro) {
+            introSkipSeconds = Math.max(0, Math.min(3600, introSkipSeconds + deltaSeconds));
+            introSkipApplied = false;
+        } else {
+            endSkipSeconds = Math.max(0, Math.min(3600, endSkipSeconds + deltaSeconds));
+            endSkipApplied = false;
+        }
+        updateSkipUi();
+        savePlayerProfile();
+    }
+
+    private void updateSkipUi() {
+        if (introSkipValue != null) introSkipValue.setText(formatSkipTime(introSkipSeconds));
+        if (endSkipValue != null) endSkipValue.setText(formatSkipTime(endSkipSeconds));
+        if (autoSkipSwitch != null) {
+            autoSkipSwitch.setOnCheckedChangeListener(null);
+            autoSkipSwitch.setChecked(autoSkipEnabled);
+            autoSkipSwitch.setOnCheckedChangeListener((button, checked) -> {
+                autoSkipEnabled = checked;
+                introSkipApplied = false;
+                endSkipApplied = false;
+                savePlayerProfile();
+            });
+        }
+    }
+
+    private String formatSkipTime(int totalSeconds) {
+        int minutes = Math.max(0, totalSeconds) / 60;
+        int seconds = Math.max(0, totalSeconds) % 60;
+        return String.format(Locale.US, "%02d:%02d", minutes, seconds);
+    }
+
+    private void cyclePlaybackSpeed() {
+        int current = 0;
+        float best = Float.MAX_VALUE;
+        for (int i = 0; i < PLAYBACK_SPEEDS.length; i++) {
+            float diff = Math.abs(PLAYBACK_SPEEDS[i] - playbackSpeed);
+            if (diff < best) {
+                best = diff;
+                current = i;
+            }
+        }
+        playbackSpeed = PLAYBACK_SPEEDS[(current + 1) % PLAYBACK_SPEEDS.length];
+        getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .edit().putFloat(SPEED_KEY, playbackSpeed).apply();
+        applyPlaybackSpeed();
+        updatePlaybackSpeedLabel();
+        showFeedback(String.format(Locale.US, "Speed • %.2gx", playbackSpeed));
+    }
+
+    private void updatePlaybackSpeedLabel() {
+        if (playbackSpeedButton == null) return;
+        String value = playbackSpeed == 1f
+                ? "1.0x"
+                : String.format(Locale.US, "%.2gx", playbackSpeed);
+        playbackSpeedButton.setText("Playback Speed • " + value);
+    }
+
+    private void applyPlaybackSpeed() {
+        if (usingVlc && vlcPlayer != null) {
+            try { vlcPlayer.setRate(playbackSpeed); } catch (Exception ignored) {}
+        } else if (player != null) {
+            try { player.setPlaybackSpeed(playbackSpeed); } catch (Exception ignored) {}
+        }
+    }
+
+    private void showTrackSelection(boolean subtitle) {
+        if (usingVlc) {
+            showVlcTrackDialog(subtitle);
+            return;
+        }
+        if (player == null) {
+            showToast("Player is still loading");
+            return;
+        }
+        int type = subtitle ? C.TRACK_TYPE_TEXT : C.TRACK_TYPE_AUDIO;
+        String title = subtitle ? "Subtitle Tracks" : "Audio Tracks";
+        try {
+            new TrackSelectionDialogBuilder(this, title, player, type)
+                    .setAllowAdaptiveSelections(true)
+                    .build()
+                    .show();
+        } catch (Throwable error) {
+            showToast("Track selection is unavailable for this source");
+        }
+    }
+
+    private void setViewMode(int mode) {
+        viewMode = Math.max(VIEW_FIT, Math.min(VIEW_4_3, mode));
+        getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .edit().putInt(VIEW_MODE_KEY, viewMode).apply();
+        updateViewModeLabels();
+        updateAspectButtons();
+        applyViewMode();
+        showFeedback("Aspect • " + VIEW_MODE_LABELS[viewMode]);
+    }
+
+    private void updateAspectButtons() {
+        int active = getResources().getColor(R.color.download_button_bg_color);
+        int normal = Color.WHITE;
+        View[] views = new View[]{
+                findViewById(R.id.aspect_default),
+                findViewById(R.id.aspect_stretch),
+                findViewById(R.id.aspect_fill),
+                findViewById(R.id.aspect_16_9),
+                findViewById(R.id.aspect_4_3)};
+        int[] modes = new int[]{VIEW_FIT, VIEW_FILL, VIEW_CROP, VIEW_16_9, VIEW_4_3};
+        for (int i = 0; i < views.length; i++) {
+            if (views[i] instanceof Button) {
+                ((Button) views[i]).setTextColor(viewMode == modes[i] ? active : normal);
+            }
+        }
+    }
+
+    private void applyAutoSkipIfNeeded() {
+        if (!autoSkipEnabled || (player == null && vlcPlayer == null)) return;
+        long position = getPlaybackPosition();
+        long duration = getPlaybackDuration();
+
+        if (!introSkipApplied && introSkipSeconds > 0
+                && position >= 500L
+                && position < introSkipSeconds * 1000L - 250L) {
+            introSkipApplied = true;
+            seekAbsolute(introSkipSeconds * 1000L);
+            showFeedback("Intro skipped");
+            return;
+        }
+
+        if (!endSkipApplied && endSkipSeconds > 0 && duration > 0
+                && position > MIN_RESUME_MS
+                && duration - position <= endSkipSeconds * 1000L) {
+            endSkipApplied = true;
+            clearResume();
+            String nextUrl = getIntent().getStringExtra(EXTRA_NEXT_URL);
+            if (nextUrl != null && !nextUrl.trim().isEmpty()) {
+                playNextEpisode(nextUrl);
+            } else {
+                seekAbsolute(Math.max(0, duration - 500L));
+            }
+        }
+    }
+
+    private void seekAbsolute(long targetMs) {
+        long duration = getPlaybackDuration();
+        long target = Math.max(0, targetMs);
+        if (duration > 0) target = Math.min(duration, target);
+        if (usingVlc && vlcPlayer != null) {
+            try { vlcPlayer.setTime(target); } catch (Exception ignored) {}
+            updateVlcProgress();
+        } else if (player != null) {
+            player.seekTo(target);
+        }
+    }
+
+    private void playNextEpisode(String nextUrl) {
+        Intent next = new Intent(this, PlayerActivity.class);
+        next.putExtra("url", nextUrl);
+        next.putExtra(EXTRA_RESUME_KEY,
+                getIntent().getStringExtra(EXTRA_NEXT_RESUME_KEY));
+        next.putExtra(EXTRA_MEDIA_GROUP_KEY, mediaGroupKey);
+        String title = getIntent().getStringExtra(EXTRA_NEXT_TITLE);
+        if (title != null) next.putExtra(EXTRA_NEXT_TITLE, title);
+        startActivity(next);
+        finish();
+    }
+
     protected boolean initializePlayer() {
         if (player != null || usingVlc) return true;
 
@@ -555,7 +816,7 @@ public class PlayerActivity extends AppCompatActivity
         mediaItem = MediaItem.fromUri(uri);
 
         if (startItemIndex == C.INDEX_UNSET) {
-            long saved = ResumeUtils.getPosition(this, currentUrl);
+            long saved = ResumeUtils.getPositionForMedia(this, resumeKey, currentUrl);
             if (saved >= MIN_RESUME_MS) {
                 startItemIndex = 0;
                 startPosition = saved;
@@ -595,6 +856,7 @@ public class PlayerActivity extends AppCompatActivity
             showFeedback("Resume • " + formatTime(startPosition));
         }
         player.prepare();
+        applyPlaybackSpeed();
         return true;
     }
 
@@ -669,6 +931,7 @@ public class PlayerActivity extends AppCompatActivity
                     refreshVlcTrackControls();
                     vlcPlayPause.setText("Pause");
                     applyViewMode();
+                    applyPlaybackSpeed();
                     handler.removeCallbacks(vlcProgressUpdater);
                     handler.post(vlcProgressUpdater);
                 });
@@ -987,12 +1250,12 @@ public class PlayerActivity extends AppCompatActivity
                 || (duration > 0 && duration - position <= FINISHED_THRESHOLD_MS)) {
             clearResume();
         } else {
-            ResumeUtils.save(this, currentUrl, position);
+            ResumeUtils.saveForMedia(this, resumeKey, currentUrl, position);
         }
     }
 
     private void clearResume() {
-        if (currentUrl != null) ResumeUtils.remove(this, currentUrl);
+        ResumeUtils.removeForMedia(this, resumeKey, currentUrl);
     }
 
     private boolean isLikelyHevcSource(String url) {
