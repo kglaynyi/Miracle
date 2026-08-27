@@ -77,6 +77,9 @@ public interface EpisodeDao {
     @Query("SELECT * FROM Episode WHERE gd_id =:id")
     Episode findByGdId(String id);
 
+    @Query("SELECT * FROM Episode WHERE index_id=:indexId")
+    List<Episode> getAllFromIndex(int indexId);
+
     @Query("DELETE FROM Episode WHERE gd_id =:id")
     void deleteByGdId(String id);
 }
