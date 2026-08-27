@@ -20,7 +20,7 @@
         android:layout_marginTop="35dp"
         android:fontFamily="@font/jost_medium"
         android:gravity="top"
-        android:text="Manage Sources"
+        android:text="Manage Indexes"
         android:textColor="@color/white"
         android:textSize="25sp"
         android:textStyle="bold" />
