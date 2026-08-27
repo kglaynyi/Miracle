@@ -97,123 +97,8 @@
                     android:text="00:00"
                     android:textColor="#D9FFFFFF"
                     android:textSize="13sp" />
-
-                <Button
-                    android:id="@+id/vlc_audio_tracks"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginStart="14dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/player_feedback_background"
-                    android:fontFamily="@font/jost_medium"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="Audio"
-                    android:textAllCaps="false"
-                    android:textColor="@color/white" />
-
-                <Button
-                    android:id="@+id/vlc_subtitle_tracks"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/player_feedback_background"
-                    android:fontFamily="@font/jost_medium"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="Subtitles"
-                    android:textAllCaps="false"
-                    android:textColor="@color/white" />
-
-                <com.miracle.kglaynyi.player.PlayerQualityButton
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/player_feedback_background"
-                    android:fontFamily="@font/jost_medium"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="Quality"
-                    android:textAllCaps="false"
-                    android:textColor="@color/white" />
-
-                <com.miracle.kglaynyi.player.SubtitleSizeButton
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/player_feedback_background"
-                    android:fontFamily="@font/jost_medium"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:textAllCaps="false"
-                    android:textColor="@color/white" />
-
-                <com.miracle.kglaynyi.player.MxViewModeButton
-                    android:id="@+id/video_view_mode"
-                    android:layout_width="wrap_content"
-                    android:layout_height="40dp"
-                    android:background="@drawable/player_feedback_background"
-                    android:fontFamily="@font/jost_medium"
-                    android:minWidth="0dp"
-                    android:paddingStart="12dp"
-                    android:paddingEnd="12dp"
-                    android:text="Fit"
-                    android:textAllCaps="false"
-                    android:textColor="@color/white" />
             </LinearLayout>
         </HorizontalScrollView>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/exo_safe_controls"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_margin="14dp"
-        android:orientation="horizontal"
-        android:visibility="gone">
-
-        <com.miracle.kglaynyi.player.MxViewModeButton
-            android:id="@+id/exo_view_mode"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:layout_marginEnd="6dp"
-            android:background="@drawable/player_feedback_background"
-            android:fontFamily="@font/jost_medium"
-            android:minWidth="0dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:text="Fit"
-            android:textAllCaps="false"
-            android:textColor="@color/white" />
-
-        <com.miracle.kglaynyi.player.PlayerQualityButton
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:layout_marginEnd="6dp"
-            android:background="@drawable/player_feedback_background"
-            android:fontFamily="@font/jost_medium"
-            android:minWidth="0dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:text="Quality"
-            android:textAllCaps="false"
-            android:textColor="@color/white" />
-
-        <com.miracle.kglaynyi.player.SubtitleSizeButton
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:background="@drawable/player_feedback_background"
-            android:fontFamily="@font/jost_medium"
-            android:minWidth="0dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:textAllCaps="false"
-            android:textColor="@color/white" />
     </LinearLayout>
 
     <Button
@@ -256,8 +141,18 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
-                    android:gravity="center"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/player_settings_back"
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@color/transparent"
+                        android:contentDescription="Back"
+                        android:padding="9dp"
+                        android:src="@drawable/ic_arrow_back"
+                        app:tint="@color/white" />
 
                     <Button
                         android:id="@+id/tab_video"
@@ -532,20 +427,9 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
                         android:fontFamily="@font/jost_regular"
-                        android:text="Choose an audio track for this video."
+                        android:text="Tap AUDIO above to choose a track directly."
                         android:textColor="#CCFFFFFF"
                         android:textSize="16sp" />
-
-                    <Button
-                        android:id="@+id/panel_audio_tracks"
-                        android:layout_width="match_parent"
-                        android:layout_height="50dp"
-                        android:layout_marginTop="18dp"
-                        android:background="@drawable/player_feedback_background"
-                        android:fontFamily="@font/jost_medium"
-                        android:text="Audio Tracks"
-                        android:textAllCaps="false"
-                        android:textColor="@color/white" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -560,20 +444,9 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="18dp"
                         android:fontFamily="@font/jost_regular"
-                        android:text="Choose subtitle track and subtitle size."
+                        android:text="Tap SUBTITLE above to choose a track directly. Adjust size below."
                         android:textColor="#CCFFFFFF"
                         android:textSize="16sp" />
-
-                    <Button
-                        android:id="@+id/panel_subtitle_tracks"
-                        android:layout_width="match_parent"
-                        android:layout_height="50dp"
-                        android:layout_marginTop="18dp"
-                        android:background="@drawable/player_feedback_background"
-                        android:fontFamily="@font/jost_medium"
-                        android:text="Subtitle Tracks"
-                        android:textAllCaps="false"
-                        android:textColor="@color/white" />
 
                     <com.miracle.kglaynyi.player.SubtitleSizeButton
                         android:id="@+id/panel_subtitle_size"
