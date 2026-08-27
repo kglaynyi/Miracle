@@ -1,5 +1,6 @@
 package com.miracle.kglaynyi.fragments;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -18,7 +19,10 @@ import com.miracle.kglaynyi.adapter.ScaleCenterItemLayoutManager;
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.Movie;
 import com.miracle.kglaynyi.model.MyMedia;
+import com.miracle.kglaynyi.model.TVShowInfo.Episode;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
+import com.miracle.kglaynyi.player.PlayerActivity;
+import com.miracle.kglaynyi.utils.ResumeUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,12 +34,16 @@ public class HomeFragment extends BaseFragment {
     MediaAdapter recentlyReleasedRecyclerViewAdapter;
     MediaAdapter topRatedMoviesRecyclerViewAdapter;
     MediaAdapter lastPlayedMoviesRecyclerViewAdapter;
+    MediaAdapter continueWatchingRecyclerViewAdapter;
     MediaAdapter watchlistRecyclerViewAdapter;
 
     MediaAdapter topRatedShowsRecyclerAdapter;
     MediaAdapter newSeasonRecyclerAdapter;
 
 
+
+    TextView continueWatchingRecyclerViewTitle;
+    RecyclerView continueWatchingRecyclerView;
 
     TextView recentlyAddedRecyclerViewTitle;
     RecyclerView recentlyAddedRecyclerView;
@@ -57,6 +65,9 @@ public class HomeFragment extends BaseFragment {
 
     TextView newSeasonRecyclerViewTitle;
     RecyclerView newSeasonRecyclerView;
+
+    List<MyMedia> continueWatchingMedia = new ArrayList<>();
+    List<ResumeUtils.Entry> continueWatchingEntries = new ArrayList<>();
 
     List<Movie> recentlyAddedMovies;
     List<Movie> recentlyReleasedMovies;
@@ -91,6 +102,7 @@ public class HomeFragment extends BaseFragment {
         super.onViewCreated(view, savedInstanceState);
 
 
+        loadContinueWatching();
         loadRecentlyAddedMovies();
         loadRecentlyReleasedMovies();
         loadTopRatedMovies();
@@ -110,6 +122,7 @@ public class HomeFragment extends BaseFragment {
     public void onResume() {
     super.onResume();
     if (getView() == null) return;
+    loadContinueWatching();
     loadRecentlyAddedMovies();
     loadRecentlyReleasedMovies();
     loadTopRatedMovies();
@@ -118,6 +131,79 @@ public class HomeFragment extends BaseFragment {
     loadNewSeason();
     loadTopRatedShows();
 }
+
+    private void loadContinueWatching() {
+        new Thread(() -> {
+            List<ResumeUtils.Entry> savedEntries = ResumeUtils.getEntries(mActivity);
+            List<MyMedia> media = new ArrayList<>();
+            List<ResumeUtils.Entry> resolvedEntries = new ArrayList<>();
+
+            for (ResumeUtils.Entry entry : savedEntries) {
+                if (entry == null || entry.url == null) continue;
+
+                Movie movie = DatabaseClient.getInstance(mActivity)
+                        .getAppDatabase().movieDao().findByUrl(entry.url);
+                if (movie != null) {
+                    media.add(movie);
+                    resolvedEntries.add(entry);
+                    continue;
+                }
+
+                Episode episode = DatabaseClient.getInstance(mActivity)
+                        .getAppDatabase().episodeDao().findByUrl(entry.url);
+                if (episode != null) {
+                    TVShow show = DatabaseClient.getInstance(mActivity)
+                            .getAppDatabase().tvShowDao().find(episode.getShow_id());
+                    if (show != null) {
+                        media.add(show);
+                        resolvedEntries.add(entry);
+                    }
+                }
+            }
+
+            continueWatchingMedia = media;
+            continueWatchingEntries = resolvedEntries;
+
+            mActivity.runOnUiThread(() -> {
+                if (!isAdded() || getView() == null) return;
+
+                continueWatchingRecyclerViewTitle =
+                        mActivity.findViewById(R.id.continueWatchingTitle);
+                continueWatchingRecyclerView =
+                        mActivity.findViewById(R.id.continueWatchingRecycler);
+
+                if (continueWatchingMedia.isEmpty()) {
+                    continueWatchingRecyclerViewTitle.setVisibility(View.GONE);
+                    continueWatchingRecyclerView.setVisibility(View.GONE);
+                    return;
+                }
+
+                continueWatchingRecyclerViewTitle.setVisibility(View.VISIBLE);
+                continueWatchingRecyclerView.setVisibility(View.VISIBLE);
+                continueWatchingRecyclerView.setLayoutManager(
+                        new ScaleCenterItemLayoutManager(getContext(),
+                                LinearLayoutManager.HORIZONTAL, false));
+                continueWatchingRecyclerView.setHasFixedSize(true);
+                continueWatchingRecyclerView.setItemAnimator(null);
+
+                MediaAdapter.OnItemClickListener listener = (view, position) -> {
+                    if (position < 0 || position >= continueWatchingEntries.size()) return;
+                    ResumeUtils.Entry entry = continueWatchingEntries.get(position);
+                    Intent intent = new Intent(mActivity, PlayerActivity.class);
+                    intent.putExtra("url", entry.url);
+                    startActivity(intent);
+                };
+
+                if (continueWatchingRecyclerViewAdapter == null) {
+                    continueWatchingRecyclerViewAdapter =
+                            new MediaAdapter(getContext(), continueWatchingMedia, listener);
+                    continueWatchingRecyclerView.setAdapter(continueWatchingRecyclerViewAdapter);
+                } else {
+                    continueWatchingRecyclerViewAdapter.submitList(continueWatchingMedia);
+                }
+            });
+        }).start();
+    }
 
     private void loadWatchlist() {
         Thread thread = new Thread(new Runnable() {
