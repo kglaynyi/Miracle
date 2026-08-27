@@ -34,6 +34,7 @@ import com.miracle.kglaynyi.model.MyMedia;
 import com.miracle.kglaynyi.model.TVShowInfo.Episode;
 import com.miracle.kglaynyi.player.PlayerActivity;
 import com.miracle.kglaynyi.utils.MovieQualityExtractor;
+import com.miracle.kglaynyi.utils.MediaSourceDeduplicator;
 import com.miracle.kglaynyi.utils.sizetoReadablesize;
 
 import java.util.ArrayList;
@@ -52,7 +53,7 @@ public class FileItemAdapter extends RecyclerView.Adapter<FileItemAdapter.FileIt
 
     public FileItemAdapter(Context context, List<MyMedia> mediaList) {
         this.context = context;
-        this.mediaList = mediaList;
+        this.mediaList = MediaSourceDeduplicator.deduplicateMedia(mediaList);
 //        this.listener= listener;
     }
 
