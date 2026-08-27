@@ -71,7 +71,7 @@ public class PlayerActivity extends AppCompatActivity
     private static final int VIEW_ORIGINAL = 1;
     private static final int VIEW_FILL = 2;
     private static final int VIEW_CROP = 3;
-    private static final String[] VIEW_MODE_LABELS = {"Fit", "Original", "Fill", "Crop"};
+    private static final String[] VIEW_MODE_LABELS = {"Fit", "Original", "Full", "Crop"};
 
     public static final String PREFER_EXTENSION_DECODERS_EXTRA = "prefer_extension_decoders";
 
