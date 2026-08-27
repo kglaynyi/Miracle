@@ -91,4 +91,7 @@ public interface EpisodeDao {
     @Query("DELETE FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size")
     int deleteByIndexFileAndSize(int indexId, String fileName, String size);
 
+    @Query("DELETE FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND COALESCE(gd_id,'') != :keepGdId")
+    int deleteDuplicateSources(int indexId, String fileName, String size, String keepGdId);
+
 }
