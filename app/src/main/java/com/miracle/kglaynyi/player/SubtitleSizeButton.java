@@ -43,14 +43,6 @@ public class SubtitleSizeButton extends AppCompatButton {
 
     private void showSizeDialog() {
         StyledPlayerView playerView = getRootView().findViewById(R.id.player_view);
-        if (playerView == null || playerView.getVisibility() != View.VISIBLE) {
-            new AlertDialog.Builder(getContext())
-                    .setTitle("Subtitle size")
-                    .setMessage("Live subtitle-size control is available in the normal ExoPlayer mode. Software decoder subtitles currently use libVLC rendering.")
-                    .setPositiveButton("OK", null)
-                    .show();
-            return;
-        }
 
         int saved = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY, 22);
         String[] labels = new String[SIZES.length];
@@ -66,7 +58,12 @@ public class SubtitleSizeButton extends AppCompatButton {
                     int size = SIZES[which];
                     getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                             .edit().putInt(KEY, size).apply();
-                    applySize(playerView, size);
+                    if (playerView != null && playerView.getVisibility() == View.VISIBLE) {
+                        applySize(playerView, size);
+                    }
+                    if (getContext() instanceof PlayerActivity) {
+                        ((PlayerActivity) getContext()).applySubtitleSizeSetting(size);
+                    }
                     setText("Sub " + size);
                     dialog.dismiss();
                 })
@@ -85,6 +82,7 @@ public class SubtitleSizeButton extends AppCompatButton {
         SubtitleView subtitleView = playerView.getSubtitleView();
         if (subtitleView != null) {
             subtitleView.setApplyEmbeddedStyles(true);
+            subtitleView.setApplyEmbeddedFontSizes(false);
             subtitleView.setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
         }
     }

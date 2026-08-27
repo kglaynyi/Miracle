@@ -45,6 +45,10 @@ public class PlayerQualityButton extends AppCompatButton {
     }
 
     private void showQualityDialog() {
+        if (getContext() instanceof PlayerActivity
+                && ((PlayerActivity) getContext()).showSourceQualityDialog(this)) {
+            return;
+        }
         View root = getRootView();
         StyledPlayerView playerView = root.findViewById(R.id.player_view);
         if (playerView == null || playerView.getVisibility() != View.VISIBLE) {
@@ -97,12 +101,14 @@ public class PlayerQualityButton extends AppCompatButton {
                 .setTitle("Quality")
                 .setSingleChoiceItems(labels, currentChecked, (dialog, which) -> {
                     TrackSelectionParameters.Builder builder = player.getTrackSelectionParameters().buildUpon();
+                    builder.clearVideoSizeConstraints();
                     if (which == 0) {
-                        builder.setMaxVideoSize(Integer.MAX_VALUE, Integer.MAX_VALUE);
+                        builder.setForceHighestSupportedBitrate(false);
                         setText("Quality");
                     } else {
                         int targetHeight = heights.get(which - 1);
                         builder.setMaxVideoSize(Integer.MAX_VALUE, targetHeight);
+                        builder.setForceHighestSupportedBitrate(true);
                         setText(targetHeight + "p");
                     }
                     player.setTrackSelectionParameters(builder.build());
