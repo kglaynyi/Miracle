@@ -1,236 +1,304 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/black"
+    android:background="#F6F6F3"
     android:orientation="vertical"
-    tools:context="com.miracle.kglaynyi.fragments.HomeFragment">
+    android:paddingTop="28dp">
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingEnd="8dp">
 
-    <TextView
-        android:id="@+id/hometitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="20dp"
-        android:layout_marginTop="40dp"
-        android:fontFamily="@font/jost_medium"
-        android:text="Home"
-        android:textColor="@color/white"
-        android:textSize="25sp" />
+        <ProgressBar
+            android:id="@+id/homeScanSpinner"
+            style="?android:attr/progressBarStyleSmall"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/homeScanStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:fontFamily="@font/jost_regular"
+            android:text="Scanning file source"
+            android:textColor="#4A4A4A"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/homeSearchButton"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:background="@android:color/transparent"
+            android:contentDescription="Search"
+            android:padding="10dp"
+            android:src="@drawable/ic_search"
+            android:tint="#202020" />
+
+        <TextView
+            android:id="@+id/homeMoreButton"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:gravity="center"
+            android:text="⋯"
+            android:textColor="#202020"
+            android:textSize="28sp" />
+    </LinearLayout>
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingBottom="85dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
-        android:scrollbars="vertical">
+        android:fillViewport="true"
+        android:paddingBottom="82dp"
+        android:scrollbars="none">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:paddingBottom="90dp">
 
-
-            <TextView
-                android:id="@+id/continueWatchingTitle"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:fontFamily="@font/jost_medium"
-                android:paddingStart="20dp"
-                android:text="Continue Watching"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:visibility="gone" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp">
+
+                <TextView
+                    android:id="@+id/continueWatchingTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/jost_medium"
+                    android:text="Resume Playback"
+                    android:textColor="#242424"
+                    android:textSize="17sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/continueWatchingViewAll"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/jost_regular"
+                    android:text="View All  ›"
+                    android:textColor="#777777"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/continueWatchingRecycler"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:scrollbars="horizontal"
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp"
                 android:visibility="gone" />
 
-            <TextView
-                android:id="@+id/recentlyAdded"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="@font/jost_medium"
-                android:layout_marginTop="10dp"
-                android:visibility="gone"
-                android:paddingStart="20dp"
-                android:text="Recently Added"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp">
+
+                <TextView
+                    android:id="@+id/recentlyAdded"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/jost_medium"
+                    android:text="Recently Added"
+                    android:textColor="#242424"
+                    android:textSize="17sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/recentlyAddedViewAll"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/jost_regular"
+                    android:text="View All  ›"
+                    android:textColor="#777777"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recentlyAddedRecycler"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:scrollbars="horizontal"
-                android:layout_marginTop="14dp"
-                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                tools:listitem="@layout/movie_item_banner" />
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp">
+
+                <TextView
+                    android:id="@+id/topRatedMovies"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="@font/jost_medium"
+                    android:text="Movies"
+                    android:textColor="#242424"
+                    android:textSize="17sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/moviesViewAll"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/jost_regular"
+                    android:text="View All  ›"
+                    android:textColor="#777777"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/topRatedMoviesRecycler"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp" />
 
             <TextView
                 android:id="@+id/newReleasesMovies"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="14dp"
                 android:fontFamily="@font/jost_medium"
-                android:paddingStart="20dp"
                 android:text="New Releases"
-                android:visibility="gone"
-
-                android:textColor="@color/white"
-                android:layout_marginTop="10dp"
-                android:textSize="16sp" />
+                android:textColor="#242424"
+                android:textSize="17sp"
+                android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recentlyReleasedMoviesRecycler"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:scrollbars="horizontal" />
-
-            <TextView
-                android:id="@+id/topRatedMovies"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/jost_medium"
-                android:layout_marginTop="10dp"
-                android:paddingStart="20dp"
-                android:text="Top Rated"
-                android:visibility="gone"
-
-                android:textColor="@color/white"
-                android:textSize="16sp" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/topRatedMoviesRecycler"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:scrollbars="horizontal"
-                android:layout_marginTop="14dp"/>
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp" />
 
             <TextView
                 android:id="@+id/lastPlayedMovies"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="14dp"
                 android:fontFamily="@font/jost_medium"
-                android:paddingStart="20dp"
                 android:text="Last Played"
-                android:visibility="gone"
-                android:layout_marginTop="10dp"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textColor="#242424"
+                android:textSize="17sp"
+                android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/lastPlayedMoviesRecycler"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:scrollbars="horizontal"
-                android:layout_marginTop="14dp"
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp"
                 android:visibility="gone" />
 
             <TextView
                 android:id="@+id/watchListMedia"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="14dp"
                 android:fontFamily="@font/jost_medium"
-                android:paddingStart="20dp"
                 android:text="Watchlist"
-                android:visibility="gone"
-                android:layout_marginTop="10dp"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textColor="#242424"
+                android:textSize="17sp"
+                android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/watchListMediaRecycler"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:scrollbars="horizontal"
-                android:layout_marginTop="14dp"
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp"
                 android:visibility="gone" />
 
             <TextView
                 android:id="@+id/newSeason"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="14dp"
                 android:fontFamily="@font/jost_medium"
-                android:paddingStart="20dp"
-                android:text="New Episodes"
-                android:visibility="gone"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/recyclertoprated" />
+                android:text="TV Shows"
+                android:textColor="#242424"
+                android:textSize="17sp"
+                android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/newSeasonRecycler"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:scrollbars="horizontal" />
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp" />
 
             <TextView
                 android:id="@+id/topRatedTVShows"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="14dp"
                 android:fontFamily="@font/jost_medium"
-                android:layout_marginTop="10dp"
-                android:paddingStart="20dp"
                 android:text="Top Rated Shows"
-                android:visibility="gone"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textColor="#242424"
+                android:textSize="17sp"
+                android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/topRatedTVShowsRecycler"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:scrollbars="horizontal" />
-
+                android:clipToPadding="false"
+                android:paddingStart="14dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="4dp" />
         </LinearLayout>
-<!--            <TextView-->
-<!--                android:id="@+id/RecentlyaddedTVshows"-->
-<!--                android:layout_width="wrap_content"-->
-<!--                android:layout_height="wrap_content"-->
-<!--                android:fontFamily="@font/jost_medium"-->
-<!--                android:paddingStart="20dp"-->
-<!--                android:text="Last Played"-->
-<!--                android:textColor="@color/white"-->
-<!--                android:textSize="16sp"-->
-<!--                android:visibility="visible" />-->
-
-<!--            <androidx.recyclerview.widget.RecyclerView-->
-<!--                android:id="@+id/recyclerRecentlyaddedTVshows"-->
-<!--                android:layout_width="wrap_content"-->
-<!--                android:layout_height="wrap_content"-->
-<!--                android:layout_marginTop="14dp"-->
-<!--                android:scrollbars="horizontal" />-->
-
-
-            <!--    <androidx.recyclerview.widget.RecyclerView-->
-            <!--        android:id="@+id/nestedRecycler"-->
-            <!--        android:layout_width="match_parent"-->
-            <!--        android:layout_height="wrap_content"-->
-            <!--        android:paddingTop="10dp"-->
-            <!--        tools:listitem="@layout/home_item">-->
-            <!--    </androidx.recyclerview.widget.RecyclerView>-->
-
-        <!--        <LinearLayout-->
-        <!--            android:layout_width="match_parent"-->
-        <!--            android:layout_height="wrap_content"-->
-        <!--            android:orientation="vertical"-->
-        <!--            android:paddingHorizontal="10dp"-->
-        <!--            android:paddingBottom="100dp">-->
-
-
-        <!--</LinearLayout>-->
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>
