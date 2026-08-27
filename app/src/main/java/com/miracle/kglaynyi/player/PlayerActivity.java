@@ -17,6 +17,7 @@ import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.GestureDetector;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -31,6 +32,7 @@ import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlayer;
@@ -46,6 +48,7 @@ import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
+import com.google.android.exoplayer2.ui.TrackSelectionDialogBuilder;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.MimeTypes;
@@ -76,12 +79,23 @@ public class PlayerActivity extends AppCompatActivity
 
     public static final String EXTRA_QUALITY_URLS = "quality_urls";
     public static final String EXTRA_QUALITY_LABELS = "quality_labels";
+    public static final String EXTRA_RESUME_KEY = "resume_key";
+    public static final String EXTRA_MEDIA_GROUP_KEY = "media_group_key";
+    public static final String EXTRA_NEXT_URL = "next_url";
+    public static final String EXTRA_NEXT_RESUME_KEY = "next_resume_key";
+    public static final String EXTRA_NEXT_TITLE = "next_title";
 
     private static final int VIEW_FIT = 0;
     private static final int VIEW_ORIGINAL = 1;
     private static final int VIEW_FILL = 2;
     private static final int VIEW_CROP = 3;
-    private static final String[] VIEW_MODE_LABELS = {"Fit", "Original", "Full", "Crop"};
+    private static final int VIEW_16_9 = 4;
+    private static final int VIEW_4_3 = 5;
+    private static final String[] VIEW_MODE_LABELS = {"Fit", "Original", "Stretch", "Fill", "16:9", "4:3"};
+    private static final String PROFILE_PREFS = "miracle_player_profiles";
+    private static final String SPEED_KEY = "PLAYER_SPEED";
+    private static final float[] PLAYBACK_SPEEDS =
+            new float[]{0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
 
     public static final String PREFER_EXTENSION_DECODERS_EXTRA = "prefer_extension_decoders";
 
@@ -129,6 +143,26 @@ public class PlayerActivity extends AppCompatActivity
     private String[] qualityLabels;
 
     private String currentUrl;
+    private String resumeKey;
+    private String mediaGroupKey;
+    private FrameLayout playerSettingsPanel;
+    private Button playerSettingsButton;
+    private Button tabVideo;
+    private Button tabAudio;
+    private Button tabSubtitle;
+    private View videoSettingsSection;
+    private View audioSettingsSection;
+    private View subtitleSettingsSection;
+    private SwitchCompat autoSkipSwitch;
+    private TextView introSkipValue;
+    private TextView endSkipValue;
+    private Button playbackSpeedButton;
+    private int introSkipSeconds;
+    private int endSkipSeconds;
+    private boolean autoSkipEnabled;
+    private boolean introSkipApplied;
+    private boolean endSkipApplied;
+    private float playbackSpeed = 1.0f;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     private final Runnable hideFeedback = () -> {
@@ -142,6 +176,13 @@ public class PlayerActivity extends AppCompatActivity
         @Override public void run() {
             saveResumePosition();
             handler.postDelayed(this, 5000L);
+        }
+    };
+
+    private final Runnable skipWatcher = new Runnable() {
+        @Override public void run() {
+            applyAutoSkipIfNeeded();
+            handler.postDelayed(this, 500L);
         }
     };
 
@@ -190,11 +231,29 @@ public class PlayerActivity extends AppCompatActivity
         vlcCurrentTime = findViewById(R.id.vlc_current_time);
         vlcTotalTime = findViewById(R.id.vlc_total_time);
 
+        playerSettingsPanel = findViewById(R.id.player_settings_panel);
+        playerSettingsButton = findViewById(R.id.player_settings_button);
+        tabVideo = findViewById(R.id.tab_video);
+        tabAudio = findViewById(R.id.tab_audio);
+        tabSubtitle = findViewById(R.id.tab_subtitle);
+        videoSettingsSection = findViewById(R.id.video_settings_section);
+        audioSettingsSection = findViewById(R.id.audio_settings_section);
+        subtitleSettingsSection = findViewById(R.id.subtitle_settings_section);
+        autoSkipSwitch = findViewById(R.id.auto_skip_switch);
+        introSkipValue = findViewById(R.id.intro_skip_value);
+        endSkipValue = findViewById(R.id.end_skip_value);
+        playbackSpeedButton = findViewById(R.id.playback_speed_button);
+
         viewMode = getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
                 .getInt(VIEW_MODE_KEY, VIEW_FIT);
-        if (viewMode < VIEW_FIT || viewMode > VIEW_CROP) viewMode = VIEW_FIT;
+        if (viewMode < VIEW_FIT || viewMode > VIEW_4_3) viewMode = VIEW_FIT;
+        playbackSpeed = getSharedPreferences(PLAYER_SETTINGS, MODE_PRIVATE)
+                .getFloat(SPEED_KEY, 1.0f);
         updateViewModeLabels();
         readQualitySources(getIntent());
+        readMediaIdentity(getIntent());
+        loadPlayerProfile();
+        bindSettingsPanel();
 
         vlcAudioTracks.setOnClickListener(v -> showVlcTrackDialog(false));
         vlcSubtitleTracks.setOnClickListener(v -> showVlcTrackDialog(true));
