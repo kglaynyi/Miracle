@@ -1,0 +1,342 @@
+from pathlib import Path
+import re
+
+player_path = Path('app/src/main/java/com/miracle/kglaynyi/player/PlayerActivity.java')
+s = player_path.read_text()
+
+if 'import android.widget.LinearLayout;' not in s:
+    s = s.replace('import android.widget.FrameLayout;\n',
+                  'import android.widget.FrameLayout;\nimport android.widget.LinearLayout;\n')
+if 'TrackSelectionOverrides.TrackSelectionOverride' not in s:
+    s = s.replace('import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;\n',
+                  'import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;\n'
+                  'import com.google.android.exoplayer2.trackselection.TrackSelectionOverrides.TrackSelectionOverride;\n')
+
+s = s.replace(
+    '    private View subtitleSettingsSection;\n    private SwitchCompat autoSkipSwitch;',
+    '    private View subtitleSettingsSection;\n'
+    '    private LinearLayout audioTrackList;\n'
+    '    private LinearLayout subtitleTrackList;\n'
+    '    private SwitchCompat autoSkipSwitch;')
+
+s = s.replace(
+    '        subtitleSettingsSection = findViewById(R.id.subtitle_settings_section);\n'
+    '        autoSkipSwitch = findViewById(R.id.auto_skip_switch);',
+    '        subtitleSettingsSection = findViewById(R.id.subtitle_settings_section);\n'
+    '        audioTrackList = findViewById(R.id.audio_track_list);\n'
+    '        subtitleTrackList = findViewById(R.id.subtitle_track_list);\n'
+    '        autoSkipSwitch = findViewById(R.id.auto_skip_switch);')
+
+old_tabs = """        tabVideo.setOnClickListener(v -> showSettingsTab(0));
+        tabAudio.setOnClickListener(v -> {
+            showSettingsTab(1);
+            showTrackSelection(false);
+        });
+        tabSubtitle.setOnClickListener(v -> {
+            showSettingsTab(2);
+            showTrackSelection(true);
+        });"""
+new_tabs = """        tabVideo.setOnClickListener(v -> showSettingsTab(0));
+        tabAudio.setOnClickListener(v -> {
+            showSettingsTab(1);
+            refreshInlineTrackOptions(false);
+        });
+        tabSubtitle.setOnClickListener(v -> {
+            showSettingsTab(2);
+            refreshInlineTrackOptions(true);
+        });"""
+s = s.replace(old_tabs, new_tabs)
+
+old_show_tab = """    private void showSettingsTab(int tab) {
+        videoSettingsSection.setVisibility(tab == 0 ? View.VISIBLE : View.GONE);
+        audioSettingsSection.setVisibility(tab == 1 ? View.VISIBLE : View.GONE);
+        subtitleSettingsSection.setVisibility(tab == 2 ? View.VISIBLE : View.GONE);
+        int active = getResources().getColor(R.color.download_button_bg_color);
+        int normal = Color.WHITE;
+        tabVideo.setTextColor(tab == 0 ? active : normal);
+        tabAudio.setTextColor(tab == 1 ? active : normal);
+        tabSubtitle.setTextColor(tab == 2 ? active : normal);
+    }
+"""
+new_show_tab = """    private void showSettingsTab(int tab) {
+        videoSettingsSection.setVisibility(tab == 0 ? View.VISIBLE : View.GONE);
+        audioSettingsSection.setVisibility(tab == 1 ? View.VISIBLE : View.GONE);
+        subtitleSettingsSection.setVisibility(tab == 2 ? View.VISIBLE : View.GONE);
+        int active = getResources().getColor(R.color.download_button_bg_color);
+        int normal = Color.WHITE;
+        tabVideo.setTextColor(tab == 0 ? active : normal);
+        tabAudio.setTextColor(tab == 1 ? active : normal);
+        tabSubtitle.setTextColor(tab == 2 ? active : normal);
+        if (tab == 1) refreshInlineTrackOptions(false);
+        if (tab == 2) refreshInlineTrackOptions(true);
+    }
+
+    private void refreshInlineTrackOptions(boolean subtitles) {
+        LinearLayout container = subtitles ? subtitleTrackList : audioTrackList;
+        if (container == null) return;
+        container.removeAllViews();
+
+        if (usingVlc && vlcPlayer != null) {
+            populateVlcTrackOptions(container, subtitles);
+            return;
+        }
+        if (player == null) {
+            addTrackMessage(container, "Tracks are loading…");
+            return;
+        }
+
+        int trackType = subtitles ? C.TRACK_TYPE_TEXT : C.TRACK_TYPE_AUDIO;
+        boolean found = false;
+        boolean anySelected = false;
+
+        if (subtitles) {
+            for (Tracks.Group group : player.getCurrentTracks().getGroups()) {
+                if (group.getType() != C.TRACK_TYPE_TEXT) continue;
+                for (int i = 0; i < group.length; i++) {
+                    if (group.isTrackSelected(i)) anySelected = true;
+                }
+            }
+            final boolean offSelected = !anySelected;
+            addTrackButton(container, "Off", offSelected, v -> {
+                player.setTrackSelectionParameters(
+                        player.getTrackSelectionParameters().buildUpon()
+                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                                .build());
+                trackSelectionParameters = player.getTrackSelectionParameters();
+                refreshInlineTrackOptions(true);
+            });
+        }
+
+        for (Tracks.Group group : player.getCurrentTracks().getGroups()) {
+            if (group.getType() != trackType) continue;
+            for (int i = 0; i < group.length; i++) {
+                if (!group.isTrackSupported(i)) continue;
+                found = true;
+                final Tracks.Group selectedGroup = group;
+                final int selectedIndex = i;
+                String label = buildTrackLabel(group, i, subtitles);
+                boolean selected = group.isTrackSelected(i);
+                addTrackButton(container, label, selected, v -> {
+                    player.setTrackSelectionParameters(
+                            player.getTrackSelectionParameters().buildUpon()
+                                    .setTrackTypeDisabled(trackType, false)
+                                    .setOverrideForType(new TrackSelectionOverride(
+                                            selectedGroup.getMediaTrackGroup(), selectedIndex))
+                                    .build());
+                    trackSelectionParameters = player.getTrackSelectionParameters();
+                    refreshInlineTrackOptions(subtitles);
+                });
+            }
+        }
+
+        if (!found && !subtitles) addTrackMessage(container, "No audio tracks found");
+        if (!found && subtitles) addTrackMessage(container, "No embedded subtitle tracks found");
+    }
+
+    private void populateVlcTrackOptions(LinearLayout container, boolean subtitles) {
+        MediaPlayer.TrackDescription[] tracks = subtitles
+                ? vlcPlayer.getSpuTracks() : vlcPlayer.getAudioTracks();
+        int selectedId = subtitles ? vlcPlayer.getSpuTrack() : vlcPlayer.getAudioTrack();
+
+        if (subtitles) {
+            addTrackButton(container, "Off", selectedId < 0, v -> {
+                vlcPlayer.setSpuTrack(-1);
+                refreshInlineTrackOptions(true);
+            });
+        }
+
+        if (tracks == null || tracks.length == 0) {
+            addTrackMessage(container, subtitles
+                    ? "No embedded subtitle tracks found" : "No audio tracks found");
+            return;
+        }
+
+        for (int i = 0; i < tracks.length; i++) {
+            final MediaPlayer.TrackDescription track = tracks[i];
+            String name = track.name;
+            if (name == null || name.trim().isEmpty()) {
+                name = (subtitles ? "Subtitle " : "Audio ") + (i + 1);
+            }
+            final boolean selected = track.id == selectedId;
+            addTrackButton(container, name, selected, v -> {
+                if (subtitles) vlcPlayer.setSpuTrack(track.id);
+                else vlcPlayer.setAudioTrack(track.id);
+                refreshInlineTrackOptions(subtitles);
+            });
+        }
+    }
+
+    private String buildTrackLabel(Tracks.Group group, int index, boolean subtitles) {
+        com.google.android.exoplayer2.Format format = group.getTrackFormat(index);
+        StringBuilder label = new StringBuilder();
+        if (format.label != null && !format.label.trim().isEmpty()) {
+            label.append(format.label.trim());
+        } else if (format.language != null && !format.language.trim().isEmpty()
+                && !"und".equalsIgnoreCase(format.language)) {
+            label.append(format.language.toUpperCase(Locale.US));
+        } else {
+            label.append(subtitles ? "Subtitle " : "Audio ").append(index + 1);
+        }
+        if (!subtitles && format.channelCount > 0) {
+            label.append(" • ").append(format.channelCount).append("ch");
+        }
+        return label.toString();
+    }
+
+    private void addTrackButton(LinearLayout container, String label,
+                                boolean selected, View.OnClickListener listener) {
+        Button button = new Button(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(48));
+        params.topMargin = dpToPx(8);
+        button.setLayoutParams(params);
+        button.setBackgroundResource(R.drawable.player_feedback_background);
+        button.setAllCaps(false);
+        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        button.setPadding(dpToPx(16), 0, dpToPx(16), 0);
+        button.setText((selected ? "✓  " : "") + label);
+        button.setTextColor(selected
+                ? getResources().getColor(R.color.download_button_bg_color)
+                : Color.WHITE);
+        button.setTextSize(16f);
+        button.setOnClickListener(listener);
+        container.addView(button);
+    }
+
+    private void addTrackMessage(LinearLayout container, String message) {
+        TextView text = new TextView(this);
+        text.setText(message);
+        text.setTextColor(0xCCFFFFFF);
+        text.setTextSize(15f);
+        text.setPadding(0, dpToPx(16), 0, dpToPx(8));
+        container.addView(text);
+    }
+"""
+if old_show_tab not in s:
+    raise SystemExit('showSettingsTab block not found')
+s = s.replace(old_show_tab, new_show_tab)
+
+old_tracks = """        @Override
+        public void onTracksChanged(Tracks tracks) {
+            if (tracks == null || hasHardwareHevcDecoder()) return;
+            for (Tracks.Group group : tracks.getGroups()) {
+                for (int i = 0; i < group.length; i++) {
+                    String mime = group.getTrackFormat(i).sampleMimeType;
+                    if (MimeTypes.VIDEO_H265.equals(mime)) {
+                        scheduleSoftwareFallback();
+                        return;
+                    }
+                }
+            }
+        }"""
+new_tracks = """        @Override
+        public void onTracksChanged(Tracks tracks) {
+            if (isSettingsPanelOpen()) {
+                if (audioSettingsSection.getVisibility() == View.VISIBLE) {
+                    refreshInlineTrackOptions(false);
+                } else if (subtitleSettingsSection.getVisibility() == View.VISIBLE) {
+                    refreshInlineTrackOptions(true);
+                }
+            }
+            if (tracks == null || hasHardwareHevcDecoder()) return;
+            for (Tracks.Group group : tracks.getGroups()) {
+                for (int i = 0; i < group.length; i++) {
+                    String mime = group.getTrackFormat(i).sampleMimeType;
+                    if (MimeTypes.VIDEO_H265.equals(mime)) {
+                        scheduleSoftwareFallback();
+                        return;
+                    }
+                }
+            }
+        }"""
+s = s.replace(old_tracks, new_tracks)
+
+old_vlc = """    private void refreshVlcTrackControls() {
+        if (!usingVlc || vlcPlayer == null) return;
+        MediaPlayer.TrackDescription[] audioTracks = vlcPlayer.getAudioTracks();
+        MediaPlayer.TrackDescription[] subtitleTracks = vlcPlayer.getSpuTracks();
+    }"""
+new_vlc = """    private void refreshVlcTrackControls() {
+        if (!usingVlc || vlcPlayer == null) return;
+        if (isSettingsPanelOpen()) {
+            if (audioSettingsSection.getVisibility() == View.VISIBLE) {
+                refreshInlineTrackOptions(false);
+            } else if (subtitleSettingsSection.getVisibility() == View.VISIBLE) {
+                refreshInlineTrackOptions(true);
+            }
+        }
+    }"""
+s = s.replace(old_vlc, new_vlc)
+
+player_path.write_text(s)
+
+layout_path = Path('app/src/main/res/layout/activity_player.xml')
+x = layout_path.read_text()
+
+audio_old = """                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:fontFamily="@font/jost_regular"
+                        android:text="Tap AUDIO above to choose a track directly."
+                        android:textColor="#CCFFFFFF"
+                        android:textSize="16sp" />"""
+audio_new = """                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:fontFamily="@font/jost_regular"
+                        android:text="Audio track"
+                        android:textColor="#CCFFFFFF"
+                        android:textSize="16sp" />
+
+                    <LinearLayout
+                        android:id="@+id/audio_track_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />"""
+x = x.replace(audio_old, audio_new)
+
+subtitle_old = """                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:fontFamily="@font/jost_regular"
+                        android:text="Tap SUBTITLE above to choose a track directly. Adjust size below."
+                        android:textColor="#CCFFFFFF"
+                        android:textSize="16sp" />"""
+subtitle_new = """                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="18dp"
+                        android:fontFamily="@font/jost_regular"
+                        android:text="Subtitle track"
+                        android:textColor="#CCFFFFFF"
+                        android:textSize="16sp" />
+
+                    <LinearLayout
+                        android:id="@+id/subtitle_track_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />"""
+x = x.replace(subtitle_old, subtitle_new)
+
+if 'android:id="@+id/player_settings_back"' not in x:
+    raise SystemExit('settings back button unexpectedly missing')
+layout_path.write_text(x)
+
+gradle = Path('app/build.gradle')
+g = gradle.read_text()
+g = re.sub(r'versionCode\s+24\b', 'versionCode 25', g)
+g = g.replace('versionName "1.0.30"', 'versionName "1.0.31"')
+g = g.replace('// Miracle v1.0.30', '// Miracle v1.0.31')
+gradle.write_text(g)
+
+release = Path('.github/workflows/release-apk.yml')
+r = release.read_text()
+notes = ('Miracle v1.0.31 player refinement: removes the old Fit/Quality/Sub overlay controls; '
+         'AUDIO and SUBTITLE tabs now show selectable tracks directly inside the three-dot panel with no second dialog; '
+         'selected tracks are marked inline; subtitle Off is available directly; the visible back arrow and Android Back close '
+         'the settings panel without leaving the current movie; and movie/TV Play/Resume actions keep the centered full-width pill layout.')
+r = re.sub(r'NOTES="[^"]*"', 'NOTES="' + notes + '"', r)
+release.write_text(r)
