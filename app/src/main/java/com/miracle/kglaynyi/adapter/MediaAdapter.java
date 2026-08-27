@@ -6,11 +6,11 @@ import android.graphics.drawable.ColorDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -23,23 +23,61 @@ import com.miracle.kglaynyi.model.MyMedia;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShow;
 import com.miracle.kglaynyi.model.TVShowInfo.TVShowSeasonDetails;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaAdapterHolder> {
     private final Context context;
-    private final List<MyMedia> mediaList;
+    private final List<MyMedia> mediaList = new ArrayList<>();
     private final OnItemClickListener listener;
 
     public MediaAdapter(Context context, List<MyMedia> mediaList, OnItemClickListener listener) {
         this.context = context;
-        this.mediaList = mediaList;
         this.listener = listener;
+        if (mediaList != null) this.mediaList.addAll(mediaList);
+        setHasStableIds(true);
+    }
+
+    public void submitList(List<? extends MyMedia> newItems) {
+        final List<MyMedia> next = new ArrayList<>();
+        if (newItems != null) next.addAll(newItems);
+        final List<MyMedia> old = new ArrayList<>(mediaList);
+
+        DiffUtil.DiffResult diff = DiffUtil.calculateDiff(new DiffUtil.Callback() {
+            @Override public int getOldListSize() { return old.size(); }
+            @Override public int getNewListSize() { return next.size(); }
+
+            @Override
+            public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+                return stableId(old.get(oldItemPosition)) == stableId(next.get(newItemPosition));
+            }
+
+            @Override
+            public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+                MyMedia a = old.get(oldItemPosition);
+                MyMedia b = next.get(newItemPosition);
+                return Objects.equals(displayName(a), displayName(b))
+                        && Objects.equals(posterPath(a), posterPath(b))
+                        && Objects.equals(yearValue(a), yearValue(b));
+            }
+        });
+
+        mediaList.clear();
+        mediaList.addAll(next);
+        diff.dispatchUpdatesTo(this);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        return stableId(mediaList.get(position));
     }
 
     @NonNull
     @Override
     public MediaAdapterHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new MediaAdapterHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.media_item, parent, false));
+        return new MediaAdapterHolder(LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.media_item, parent, false));
     }
 
     @Override
@@ -51,34 +89,64 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaAdapter
         holder.poster.setImageResource(R.drawable.dummyposter);
 
         MyMedia media = mediaList.get(position);
+        holder.name.setText(displayName(media));
+        loadPoster(holder.poster, posterPath(media));
+
+        String year = yearValue(media);
+        if (year != null && !year.trim().isEmpty()) {
+            holder.movieYear.setVisibility(View.VISIBLE);
+            int dash = year.indexOf('-');
+            holder.movieYear.setText(dash > 0 ? year.substring(0, dash) : year);
+        }
+    }
+
+    private String displayName(MyMedia media) {
         if (media instanceof Movie) {
             Movie movie = (Movie) media;
             String name = movie.getTitle();
             if (name == null || name.trim().isEmpty()) name = movie.getFileName();
-            holder.name.setText(name == null ? "Unknown" : name);
-            loadPoster(holder.poster, movie.getPoster_path());
-            String year = movie.getRelease_date();
-            if (year != null && !year.trim().isEmpty()) {
-                holder.movieYear.setVisibility(View.VISIBLE);
-                int dash = year.indexOf('-');
-                holder.movieYear.setText(dash > 0 ? year.substring(0, dash) : year);
-            }
-        } else if (media instanceof TVShow) {
-            TVShow show = (TVShow) media;
-            holder.name.setText(show.getName() == null ? "Unknown Show" : show.getName());
-            loadPoster(holder.poster, show.getPoster_path());
-            String year = show.getFirst_air_date();
-            if (year != null && !year.isEmpty()) {
-                holder.movieYear.setVisibility(View.VISIBLE);
-                int dash = year.indexOf('-');
-                holder.movieYear.setText(dash > 0 ? year.substring(0, dash) : year);
-            }
-        } else if (media instanceof TVShowSeasonDetails) {
-            TVShowSeasonDetails season = (TVShowSeasonDetails) media;
-            holder.name.setText(season.getName() == null ? "Season" : season.getName());
-            loadPoster(holder.poster, season.getPoster_path());
+            return name == null ? "Unknown" : name;
         }
-        holder.itemView.startAnimation(AnimationUtils.loadAnimation(context, R.anim.pop_in));
+        if (media instanceof TVShow) {
+            TVShow show = (TVShow) media;
+            return show.getName() == null ? "Unknown Show" : show.getName();
+        }
+        if (media instanceof TVShowSeasonDetails) {
+            TVShowSeasonDetails season = (TVShowSeasonDetails) media;
+            return season.getName() == null ? "Season" : season.getName();
+        }
+        return "Unknown";
+    }
+
+    private String posterPath(MyMedia media) {
+        if (media instanceof Movie) return ((Movie) media).getPoster_path();
+        if (media instanceof TVShow) return ((TVShow) media).getPoster_path();
+        if (media instanceof TVShowSeasonDetails) return ((TVShowSeasonDetails) media).getPoster_path();
+        return null;
+    }
+
+    private String yearValue(MyMedia media) {
+        if (media instanceof Movie) return ((Movie) media).getRelease_date();
+        if (media instanceof TVShow) return ((TVShow) media).getFirst_air_date();
+        return null;
+    }
+
+    private long stableId(MyMedia media) {
+        if (media instanceof Movie) {
+            Movie movie = (Movie) media;
+            String gd = movie.getGd_id();
+            if (gd != null && !gd.isEmpty()) return ("movie:" + gd).hashCode();
+            if (movie.getId() != 0) return 0x100000000L + movie.getId();
+            String file = movie.getFileName();
+            return ("movie-file:" + (file == null ? movie.getFileidForDB() : file)).hashCode();
+        }
+        if (media instanceof TVShow) {
+            return 0x200000000L + ((TVShow) media).getId();
+        }
+        if (media instanceof TVShowSeasonDetails) {
+            return 0x300000000L + ((TVShowSeasonDetails) media).getId();
+        }
+        return System.identityHashCode(media);
     }
 
     private void loadPoster(ImageView view, String path) {
@@ -93,10 +161,10 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaAdapter
 
     @Override
     public int getItemCount() {
-        return mediaList == null ? 0 : mediaList.size();
+        return mediaList.size();
     }
 
-    public class MediaAdapterHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+    public class MediaAdapterHolder extends RecyclerView.ViewHolder {
         final TextView name;
         final ImageView poster;
         final TextView movieYear;
@@ -106,13 +174,19 @@ public class MediaAdapter extends RecyclerView.Adapter<MediaAdapter.MediaAdapter
             name = itemView.findViewById(R.id.nameInMediaItem);
             poster = itemView.findViewById(R.id.posterInMediaItem);
             movieYear = itemView.findViewById(R.id.yearInMediaItem);
-            itemView.setOnClickListener(this);
-        }
 
-        @Override
-        public void onClick(View v) {
-            int position = getBindingAdapterPosition();
-            if (listener != null && position != RecyclerView.NO_POSITION) listener.onClick(v, position);
+            itemView.setOnClickListener(v -> {
+                int position = getBindingAdapterPosition();
+                if (listener == null || position == RecyclerView.NO_POSITION) return;
+                v.animate().cancel();
+                v.animate().scaleX(0.96f).scaleY(0.96f).setDuration(70)
+                        .withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(100)
+                                .withEndAction(() -> {
+                                    int current = getBindingAdapterPosition();
+                                    if (current != RecyclerView.NO_POSITION) listener.onClick(v, current);
+                                }).start())
+                        .start();
+            });
         }
     }
 
