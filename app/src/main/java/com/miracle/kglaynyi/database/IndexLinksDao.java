@@ -21,6 +21,9 @@ public interface IndexLinksDao {
     @Query("SELECT * FROM IndexLink WHERE link=:link")
     IndexLink find(String link);
 
+    @Query("SELECT * FROM IndexLink WHERE id=:id LIMIT 1")
+    IndexLink findById(int id);
+
     @Insert
     void insert(IndexLink... indexLinks);
 
