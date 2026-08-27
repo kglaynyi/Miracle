@@ -34,7 +34,7 @@ public class TvShowsLibraryFragment extends BaseFragment {
     private List<TVShow> allShows = new ArrayList<>();
     private List<TVShow> tvShowList = new ArrayList<>();
     private String selectedGenre = GenreFilterUtils.ALL_GENRES;
-    private boolean spinnerReady;
+    private List<String> genreOptions = new ArrayList<>();
 
     private final Handler libraryRefreshHandler = new Handler(Looper.getMainLooper());
     private final Runnable libraryRefreshRunnable = new Runnable() {
@@ -100,21 +100,26 @@ public class TvShowsLibraryFragment extends BaseFragment {
         mActivity.runOnUiThread(() -> {
             if (!isAdded() || getView() == null) return;
             List<String> genres = GenreFilterUtils.collectGenres((List<? extends MyMedia>)(List<?>) allShows);
-            ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(mActivity, R.layout.item_genre_filter, genres);
-            spinnerAdapter.setDropDownViewResource(R.layout.item_genre_filter);
-            int selectedIndex = Math.max(0, genres.indexOf(selectedGenre));
 
-            spinnerReady = false;
-            genreSpinner.setAdapter(spinnerAdapter);
-            genreSpinner.setSelection(selectedIndex, false);
-            genreSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-                @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                    if (!spinnerReady) { spinnerReady = true; return; }
-                    selectedGenre = genres.get(position);
-                    updateVisibleList();
-                }
-                @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-            });
+            if (!genreOptions.equals(genres)) {
+                genreOptions = new ArrayList<>(genres);
+                ArrayAdapter<String> spinnerAdapter =
+                        new ArrayAdapter<>(mActivity, R.layout.item_genre_filter, genreOptions);
+                spinnerAdapter.setDropDownViewResource(R.layout.item_genre_filter);
+
+                genreSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view,
+                                                         int position, long itemId) {
+                        if (position < 0 || position >= genreOptions.size()) return;
+                        selectedGenre = genreOptions.get(position);
+                        updateVisibleList();
+                    }
+                    @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+                });
+                genreSpinner.setAdapter(spinnerAdapter);
+                int selectedIndex = Math.max(0, genreOptions.indexOf(selectedGenre));
+                genreSpinner.setSelection(selectedIndex, false);
+            }
             updateVisibleList();
         });
     }
