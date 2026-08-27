@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="250dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="12dp"
+    app:cardBackgroundColor="@color/transparent"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="0dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:layout_width="250dp"
+            android:layout_height="140dp">
+
+            <ImageView
+                android:id="@+id/episodePreviewStill"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#202020"
+                android:scaleType="centerCrop" />
+
+            <ImageView
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_gravity="center"
+                android:background="@drawable/play_shape"
+                android:padding="10dp"
+                android:src="@drawable/ic_play"
+                app:tint="@color/white" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/episodePreviewTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/jost_medium"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/episodePreviewMeta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:fontFamily="@font/jost_regular"
+            android:textColor="#B3FFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
