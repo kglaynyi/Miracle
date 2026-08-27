@@ -25,6 +25,22 @@
         android:background="@color/black"
         android:visibility="gone" />
 
+    <Button
+        android:id="@+id/view_mode_button"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="top|start"
+        android:layout_margin="14dp"
+        android:background="@drawable/player_feedback_background"
+        android:fontFamily="@font/jost_medium"
+        android:minWidth="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:text="Fit"
+        android:textAllCaps="false"
+        android:textColor="@color/white"
+        android:textSize="13sp" />
+
     <TextView
         android:id="@+id/gesture_feedback"
         android:layout_width="wrap_content"
@@ -41,40 +57,116 @@
         android:visibility="gone" />
 
     <LinearLayout
-        android:id="@+id/vlc_track_controls"
-        android:layout_width="wrap_content"
+        android:id="@+id/vlc_controller"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="18dp"
-        android:orientation="horizontal"
+        android:layout_gravity="bottom"
+        android:background="#B3000000"
+        android:orientation="vertical"
+        android:paddingStart="14dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="12dp"
         android:visibility="gone">
 
-        <Button
-            android:id="@+id/vlc_audio_tracks"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/player_feedback_background"
-            android:fontFamily="@font/jost_medium"
-            android:minWidth="0dp"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
-            android:text="Audio"
-            android:textAllCaps="false"
-            android:textColor="@color/white" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/vlc_subtitle_tracks"
-            android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:background="@drawable/player_feedback_background"
-            android:fontFamily="@font/jost_medium"
-            android:minWidth="0dp"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp"
-            android:text="Subtitles"
-            android:textAllCaps="false"
-            android:textColor="@color/white" />
+            <TextView
+                android:id="@+id/vlc_current_time"
+                android:layout_width="52dp"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/jost_medium"
+                android:gravity="start|center_vertical"
+                android:text="00:00"
+                android:textColor="@color/white"
+                android:textSize="12sp" />
+
+            <SeekBar
+                android:id="@+id/vlc_seek_bar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="1000"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp" />
+
+            <TextView
+                android:id="@+id/vlc_duration"
+                android:layout_width="52dp"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/jost_medium"
+                android:gravity="end|center_vertical"
+                android:text="00:00"
+                android:textColor="@color/white"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical|end"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/vlc_play_pause"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/player_feedback_background"
+                android:fontFamily="@font/jost_medium"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Pause"
+                android:textAllCaps="false"
+                android:textColor="@color/white" />
+
+            <Button
+                android:id="@+id/vlc_audio_tracks"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/player_feedback_background"
+                android:fontFamily="@font/jost_medium"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Audio"
+                android:textAllCaps="false"
+                android:textColor="@color/white" />
+
+            <Button
+                android:id="@+id/vlc_subtitle_tracks"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/player_feedback_background"
+                android:fontFamily="@font/jost_medium"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Subtitles"
+                android:textAllCaps="false"
+                android:textColor="@color/white" />
+
+            <Button
+                android:id="@+id/vlc_view_mode"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:background="@drawable/player_feedback_background"
+                android:fontFamily="@font/jost_medium"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="Fit"
+                android:textAllCaps="false"
+                android:textColor="@color/white" />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
