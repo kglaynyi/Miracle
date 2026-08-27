@@ -17,6 +17,9 @@ public final class ResumeUtils {
     private static final String POSITION_PREFIX = "resume_";
     private static final String URL_PREFIX = "resume_url_";
     private static final String UPDATED_PREFIX = "resume_updated_";
+    private static final String MEDIA_POSITION_PREFIX = "media_resume_";
+    private static final String MEDIA_URL_PREFIX = "media_url_";
+    private static final String MEDIA_UPDATED_PREFIX = "media_updated_";
 
     private ResumeUtils() {}
 
@@ -57,6 +60,42 @@ public final class ResumeUtils {
                 .remove(POSITION_PREFIX + suffix)
                 .remove(URL_PREFIX + suffix)
                 .remove(UPDATED_PREFIX + suffix)
+                .apply();
+    }
+
+    public static long getPositionForMedia(Context context, String mediaKey, String url) {
+        if (context == null) return C.TIME_UNSET;
+        if (mediaKey != null && !mediaKey.trim().isEmpty()) {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            long stable = prefs.getLong(MEDIA_POSITION_PREFIX + suffix(mediaKey), C.TIME_UNSET);
+            if (stable != C.TIME_UNSET) return stable;
+        }
+        return getPosition(context, url);
+    }
+
+    public static void saveForMedia(Context context, String mediaKey, String url, long positionMs) {
+        if (context == null) return;
+        if (url != null && !url.trim().isEmpty()) save(context, url, positionMs);
+        if (mediaKey == null || mediaKey.trim().isEmpty()) return;
+        String key = suffix(mediaKey);
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(MEDIA_POSITION_PREFIX + key, positionMs)
+                .putString(MEDIA_URL_PREFIX + key, url == null ? "" : url)
+                .putLong(MEDIA_UPDATED_PREFIX + key, System.currentTimeMillis())
+                .apply();
+    }
+
+    public static void removeForMedia(Context context, String mediaKey, String url) {
+        if (context == null) return;
+        if (url != null && !url.trim().isEmpty()) remove(context, url);
+        if (mediaKey == null || mediaKey.trim().isEmpty()) return;
+        String key = suffix(mediaKey);
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove(MEDIA_POSITION_PREFIX + key)
+                .remove(MEDIA_URL_PREFIX + key)
+                .remove(MEDIA_UPDATED_PREFIX + key)
                 .apply();
     }
 
