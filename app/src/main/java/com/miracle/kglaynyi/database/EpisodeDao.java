@@ -8,6 +8,7 @@ import androidx.room.Query;
 import com.miracle.kglaynyi.model.TVShowInfo.Episode;
 
 import java.util.List;
+import java.util.Date;
 
 @Dao
 public interface EpisodeDao {
@@ -96,5 +97,8 @@ public interface EpisodeDao {
 
     @Query("DELETE FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND gd_id=:stableId AND idForDB != (SELECT MAX(idForDB) FROM Episode WHERE index_id=:indexId AND fileName=:fileName AND size=:size AND gd_id=:stableId)")
     int deleteRepeatedStableSource(int indexId, String fileName, String size, String stableId);
+
+    @Query("UPDATE Episode SET urlString=:url, fileName=:fileName, size=:size, mimeType=:mimeType, modifiedTime=:modifiedTime WHERE gd_id=:stableId")
+    void updateSourceMetadata(String stableId, String url, String fileName, String size, String mimeType, Date modifiedTime);
 
 }
