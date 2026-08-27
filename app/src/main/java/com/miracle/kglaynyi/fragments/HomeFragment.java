@@ -103,6 +103,12 @@ public class HomeFragment extends BaseFragment {
         super.onPause();
     }
 
+    @Override
+    public void onDestroyView() {
+        uiHandler.removeCallbacks(scanStatusRunnable);
+        super.onDestroyView();
+    }
+
     private void setupTopBar(View view) {
         view.findViewById(R.id.homeSearchButton).setOnClickListener(v ->
                 mActivity.getSupportFragmentManager().beginTransaction()
@@ -209,9 +215,11 @@ public class HomeFragment extends BaseFragment {
                 if (continueWatchingAdapter == null) {
                     continueWatchingAdapter =
                             new HomeResumeAdapter(getContext(), continueWatchingMedia, listener);
-                    recycler.setAdapter(continueWatchingAdapter);
                 } else {
                     continueWatchingAdapter.submitList(continueWatchingMedia);
+                }
+                if (recycler.getAdapter() != continueWatchingAdapter) {
+                    recycler.setAdapter(continueWatchingAdapter);
                 }
             });
         }).start();
@@ -240,9 +248,11 @@ public class HomeFragment extends BaseFragment {
                         openMovie(recentlyAddedMovies.get(position));
                 if (recentlyAddedAdapter == null) {
                     recentlyAddedAdapter = new HomeMediaAdapter(getContext(), recentlyAddedMovies, listener);
-                    recycler.setAdapter(recentlyAddedAdapter);
                 } else {
                     recentlyAddedAdapter.submitList(recentlyAddedMovies);
+                }
+                if (recycler.getAdapter() != recentlyAddedAdapter) {
+                    recycler.setAdapter(recentlyAddedAdapter);
                 }
             });
         }).start();
@@ -271,9 +281,11 @@ public class HomeFragment extends BaseFragment {
                         openMovie(topRatedMovies.get(position));
                 if (moviesAdapter == null) {
                     moviesAdapter = new HomeMediaAdapter(getContext(), topRatedMovies, listener);
-                    recycler.setAdapter(moviesAdapter);
                 } else {
                     moviesAdapter.submitList(topRatedMovies);
+                }
+                if (recycler.getAdapter() != moviesAdapter) {
+                    recycler.setAdapter(moviesAdapter);
                 }
             });
         }).start();
@@ -300,9 +312,11 @@ public class HomeFragment extends BaseFragment {
                 if (recentlyReleasedAdapter == null) {
                     recentlyReleasedAdapter =
                             new HomeMediaAdapter(getContext(), recentlyReleasedMovies, listener);
-                    recycler.setAdapter(recentlyReleasedAdapter);
                 } else {
                     recentlyReleasedAdapter.submitList(recentlyReleasedMovies);
+                }
+                if (recycler.getAdapter() != recentlyReleasedAdapter) {
+                    recycler.setAdapter(recentlyReleasedAdapter);
                 }
             });
         }).start();
@@ -328,9 +342,11 @@ public class HomeFragment extends BaseFragment {
                         openMovie(lastPlayedList.get(position));
                 if (lastPlayedAdapter == null) {
                     lastPlayedAdapter = new HomeMediaAdapter(getContext(), lastPlayedList, listener);
-                    recycler.setAdapter(lastPlayedAdapter);
                 } else {
                     lastPlayedAdapter.submitList(lastPlayedList);
+                }
+                if (recycler.getAdapter() != lastPlayedAdapter) {
+                    recycler.setAdapter(lastPlayedAdapter);
                 }
             });
         }).start();
@@ -362,9 +378,11 @@ public class HomeFragment extends BaseFragment {
                         openMedia(watchlist.get(position));
                 if (watchlistAdapter == null) {
                     watchlistAdapter = new HomeMediaAdapter(getContext(), watchlist, listener);
-                    recycler.setAdapter(watchlistAdapter);
                 } else {
                     watchlistAdapter.submitList(watchlist);
+                }
+                if (recycler.getAdapter() != watchlistAdapter) {
+                    recycler.setAdapter(watchlistAdapter);
                 }
             });
         }).start();
@@ -390,9 +408,11 @@ public class HomeFragment extends BaseFragment {
                         openShow(newSeason.get(position));
                 if (newSeasonAdapter == null) {
                     newSeasonAdapter = new HomeMediaAdapter(getContext(), newSeason, listener);
-                    recycler.setAdapter(newSeasonAdapter);
                 } else {
                     newSeasonAdapter.submitList(newSeason);
+                }
+                if (recycler.getAdapter() != newSeasonAdapter) {
+                    recycler.setAdapter(newSeasonAdapter);
                 }
             });
         }).start();
@@ -418,9 +438,11 @@ public class HomeFragment extends BaseFragment {
                         openShow(topRatedShows.get(position));
                 if (topRatedShowsAdapter == null) {
                     topRatedShowsAdapter = new HomeMediaAdapter(getContext(), topRatedShows, listener);
-                    recycler.setAdapter(topRatedShowsAdapter);
                 } else {
                     topRatedShowsAdapter.submitList(topRatedShows);
+                }
+                if (recycler.getAdapter() != topRatedShowsAdapter) {
+                    recycler.setAdapter(topRatedShowsAdapter);
                 }
             });
         }).start();
