@@ -198,9 +198,9 @@ public class HomeFragment extends BaseFragment {
                 resumeItems.add(new ContinueWatchingAdapter.Item(show, entry, ep));
             }
 
-            recentMovies = limit(recent, HOME_LIMIT);
-            movies = limit(normalMovies, HOME_LIMIT);
-            shows = limit(normalShows, HOME_LIMIT);
+            recentMovies = limitMovies(recent, HOME_LIMIT);
+            movies = limitMovies(normalMovies, HOME_LIMIT);
+            shows = limitShows(normalShows, HOME_LIMIT);
             anime = limitMedia(animeItems, HOME_LIMIT);
 
             mActivity.runOnUiThread(() -> {
@@ -275,7 +275,7 @@ public class HomeFragment extends BaseFragment {
         return input == null ? new ArrayList<>() : input;
     }
 
-    private List<Movie> limit(List<Movie> input, int max) {
+    private List<Movie> limitMovies(List<Movie> input, int max) {
         return new ArrayList<>(input.subList(0, Math.min(max, input.size())));
     }
 
