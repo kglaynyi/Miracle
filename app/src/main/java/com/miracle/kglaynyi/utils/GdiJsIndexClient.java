@@ -29,6 +29,8 @@ import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -264,7 +266,9 @@ public final class GdiJsIndexClient {
     public static List<FolderOption> listFolders(String rawBaseUrl, String username,
                                                  String password) throws Exception {
         String baseUrl = normalizeBaseUrl(rawBaseUrl);
-        Session session = loginWithRetry(baseUrl, username, password, null);
+        // The picker should fail fast instead of retrying for minutes. The index
+        // was already validated when it was added.
+        Session session = login(baseUrl, username, password);
         if (!session.success) throw new IOException(session.message);
 
         // Folder selection must be fast. Only enumerate direct children of the
@@ -298,7 +302,10 @@ public final class GdiJsIndexClient {
             }
 
             String next = pageResult.getNextPageToken();
-            if (next == null || next.trim().isEmpty()) return result;
+            if (next == null || next.trim().isEmpty()) {
+                sortFolderOptions(result);
+                return result;
+            }
             pageToken = next;
             pageIndex++;
         }
@@ -307,7 +314,25 @@ public final class GdiJsIndexClient {
             throw new IOException(
                     "Too many items in the index root to list safely. Move media into top-level folders.");
         }
+        sortFolderOptions(result);
         return result;
+    }
+
+    private static void sortFolderOptions(List<FolderOption> folders) {
+        if (folders == null || folders.size() <= 2) return;
+        FolderOption root = folders.get(0);
+        List<FolderOption> children = new ArrayList<>(folders.subList(1, folders.size()));
+        Collections.sort(children, new Comparator<FolderOption>() {
+            @Override
+            public int compare(FolderOption left, FolderOption right) {
+                String a = left == null || left.displayPath == null ? "" : left.displayPath;
+                String b = right == null || right.displayPath == null ? "" : right.displayPath;
+                return a.compareToIgnoreCase(b);
+            }
+        });
+        folders.clear();
+        folders.add(root);
+        folders.addAll(children);
     }
 
     private static String buildFolderUrl(String apiRoot, String relativePath) {
