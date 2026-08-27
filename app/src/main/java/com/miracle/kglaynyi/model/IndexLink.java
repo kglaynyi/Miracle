@@ -17,6 +17,12 @@ public class IndexLink{
     public String indexType;
     public String folderType;
 
+    // JSON array of GDI-JS folder paths selected for this index.
+    // null = legacy index (scan root until the user chooses folders)
+    // []   = new index with no folders selected yet
+    @ColumnInfo(name = "selectedFoldersJson")
+    public String selectedFoldersJson;
+
     public int getDisabled() {
         return disabled;
     }
@@ -74,5 +80,12 @@ public class IndexLink{
 
     public void setPassword(String password) {
         this.password = password;
+    }
+    public String getSelectedFoldersJson() {
+        return selectedFoldersJson;
+    }
+
+    public void setSelectedFoldersJson(String selectedFoldersJson) {
+        this.selectedFoldersJson = selectedFoldersJson;
     }
 }
