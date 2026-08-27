@@ -1,15 +1,6 @@
 package com.miracle.kglaynyi.utils;
 
-import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestGDIndex;
-import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestGoIndex;
-import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestMapleIndex;
-import static com.miracle.kglaynyi.utils.SendPostRequest.postRequestSimpleProgramIndex;
-import static com.miracle.kglaynyi.utils.SendPostRequest.resetPagingState;
-
 import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
-
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.IndexLink;
 import com.miracle.kglaynyi.model.TVShowInfo.Episode;
@@ -115,22 +106,30 @@ public class IndexUtils {
 
                 boolean tvShows = "TVShows".equals(folderType);
 
-                if ("Google Drive".equals(indexType)) {
-                    GoogleDriveFolderClient.scan(
-                            mContext, link, id,
-                            progress -> publishProgress(id, listener, progress));
+                if (!"GDI-JS".equals(indexType)) {
+                    publishProgress(id, listener, GdiJsIndexClient.Progress.failed(
+                            "Only GDI-JS indexes are supported."));
                     return;
                 }
 
-                if ("GDI-JS".equals(indexType)) {
-                    GdiJsIndexClient.scan(
-                            link, user, pass, tvShows, id,
-                            progress -> publishProgress(id, listener, progress));
+                List<String> selectedFolders =
+                        IndexFolderSelectionUtils.parse(saved.getSelectedFoldersJson());
+
+                // Existing pre-folder-selection indexes remain compatible and scan
+                // the root once until the user explicitly chooses folders.
+                if (selectedFolders == null) {
+                    selectedFolders = java.util.Collections.singletonList("/");
+                }
+
+                if (selectedFolders.isEmpty()) {
+                    publishProgress(id, listener, GdiJsIndexClient.Progress.failed(
+                            "No folders selected. Open Manage Sources → Folders."));
                     return;
                 }
 
-                publishProgress(id, listener, GdiJsIndexClient.Progress.failed(
-                        "This legacy index type is no longer supported. Re-add it as GDI-JS."));
+                GdiJsIndexClient.scanSelectedFolders(
+                        link, user, pass, tvShows, id, selectedFolders,
+                        progress -> publishProgress(id, listener, progress));
             } catch (Exception e) {
                 String message = e.getMessage();
                 if (message == null || message.trim().isEmpty()) {
@@ -204,13 +203,6 @@ public class IndexUtils {
                     .indexLinksDao()
                     .deleteById(indexLink.getId());
 
-            if ("Google Drive".equals(indexLink.getIndexType())) {
-                try {
-                    mContext.getContentResolver().releasePersistableUriPermission(
-                            Uri.parse(indexLink.getLink()), Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                } catch (Exception ignored) {
-                }
-            }
         });
         thread.start();
         try {
@@ -219,6 +211,62 @@ public class IndexUtils {
             Thread.currentThread().interrupt();
         }
         return thread.isAlive();
+    }
+
+    public static void replaceSelectedFoldersAndRefresh(
+            Context context, IndexLink indexLink, List<String> folders,
+            GdiJsIndexClient.ProgressListener listener) {
+        if (context == null || indexLink == null) return;
+
+        new Thread(() -> {
+            try {
+                List<String> safeFolders = folders == null
+                        ? new java.util.ArrayList<>()
+                        : new java.util.ArrayList<>(folders);
+
+                if (safeFolders.isEmpty()) {
+                    publishProgress(indexLink.getId(), listener,
+                            GdiJsIndexClient.Progress.failed(
+                                    "Choose at least one folder before scanning."));
+                    return;
+                }
+
+                String json = IndexFolderSelectionUtils.encode(safeFolders);
+
+                // Folder membership is not stored on old media rows, so a changed
+                // selection gets one clean rescan. Normal refreshes remain cached.
+                GdiJsIndexClient.clearIndexMediaForRescan(indexLink.getId());
+                DatabaseClient.getInstance(context).getAppDatabase().indexLinksDao()
+                        .updateSelectedFolders(indexLink.getId(), json);
+                indexLink.setSelectedFoldersJson(json);
+                indexLink.setFolderType("Movies + TV Shows");
+                DatabaseClient.getInstance(context).getAppDatabase().indexLinksDao()
+                        .updateFolderType(indexLink.getId(), "Movies + TV Shows");
+
+                GdiJsIndexClient.scanSelectedFolders(
+                        indexLink.getLink(), indexLink.getUsername(), indexLink.getPassword(),
+                        false, indexLink.getId(), safeFolders,
+                        progress -> publishProgress(indexLink.getId(), listener, progress));
+            } catch (Exception e) {
+                String message = e.getMessage();
+                if (message == null || message.trim().isEmpty()) {
+                    message = e.getClass().getSimpleName();
+                }
+                publishProgress(indexLink.getId(), listener,
+                        GdiJsIndexClient.Progress.failed("Folder scan failed • " + message));
+            }
+        }, "MiracleFolderSelectionScan").start();
+    }
+
+    public static void purgeUnsupportedSources(Context context) {
+        if (context == null) return;
+        List<IndexLink> all = DatabaseClient.getInstance(context)
+                .getAppDatabase().indexLinksDao().getAll();
+        if (all == null) return;
+        for (IndexLink source : new java.util.ArrayList<>(all)) {
+            if (source == null || "GDI-JS".equals(source.getIndexType())) continue;
+            deleteIndex(context, source);
+        }
     }
 
     public static int getNoOfMedia(Context mContext, IndexLink t) {
