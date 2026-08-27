@@ -20,7 +20,7 @@ public interface MovieDao {
     @Query("SELECT * FROM Movie WHERE id=:id and disabled=0")
     List<Movie> getAllById(int id);
 
-    @Query("SELECT * FROM Movie WHERE id=:id and disabled=0 ORDER BY size DESC limit 1 ")
+    @Query("SELECT * FROM Movie WHERE id=:id and disabled=0 ORDER BY cast(size as unsigned) DESC, (COALESCE(gd_id,'') != '') DESC, fileidForDB DESC limit 1 ")
     Movie byIdLargest(int id);
 
     @Query("SELECT * FROM Movie WHERE (fileName LIKE '%' || :string || '%' OR title like '%' || :string || '%' OR urlString like '%' || :string || '%' or overview like '%' || :string || '%') and disabled=0")
