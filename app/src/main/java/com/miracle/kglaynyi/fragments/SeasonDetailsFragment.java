@@ -29,7 +29,6 @@ import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.request.target.Target;
 import com.miracle.kglaynyi.R;
 import com.miracle.kglaynyi.adapter.EpisodeAdapter;
-import com.miracle.kglaynyi.adapter.ScaleCenterItemLayoutManager;
 import com.miracle.kglaynyi.database.DatabaseClient;
 import com.miracle.kglaynyi.model.TVShowInfo.Episode;
 import com.miracle.kglaynyi.model.TVShowInfo.Season;
@@ -261,30 +260,14 @@ public class SeasonDetailsFragment extends BaseFragment {
 
     private void loadEpisodesRecycler() {
         setOnClickListner();
+        if (episodesRecycler == null) return;
 
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Log.i(" " , "in thread");
-                mActivity.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.i(" " , episodes.toString());
-
-                        episodesRecycler = mActivity.findViewById(R.id.recyclerEpisodes);
-                        episodesRecycler.setVisibility(View.VISIBLE);
-                        ScaleCenterItemLayoutManager linearLayoutManager = new ScaleCenterItemLayoutManager(getContext() , LinearLayoutManager.VERTICAL , false);
-//                        recyclerView.setLayoutManager(new LinearLayoutManager(getContext(),RecyclerView.HORIZONTAL,false));
-                        episodesRecycler.setLayoutManager(linearLayoutManager);
-                        episodesRecycler.setHasFixedSize(true);
-                        episodeAdapter = new EpisodeAdapter(mActivity, episodes , listener);
-                        episodesRecycler.setAdapter(episodeAdapter);
-                        episodeAdapter.notifyDataSetChanged();
-                    }
-                });
-            }
-        });
-        thread.start();
+        episodesRecycler.setVisibility(View.VISIBLE);
+        episodesRecycler.setLayoutManager(new LinearLayoutManager(getContext(), RecyclerView.VERTICAL, false));
+        episodesRecycler.setHasFixedSize(false);
+        episodesRecycler.setItemAnimator(null);
+        episodeAdapter = new EpisodeAdapter(mActivity, episodes, listener);
+        episodesRecycler.setAdapter(episodeAdapter);
     }
 
 
@@ -327,7 +310,7 @@ public class SeasonDetailsFragment extends BaseFragment {
                 EpisodeDetailsFragment episodeDetailsFragment = new EpisodeDetailsFragment(tvShow , tvShowSeasonDetails , episodes.get(position));
                 mActivity.getSupportFragmentManager().beginTransaction()
                         .setCustomAnimations(R.anim.fade_in , R.anim.fade_out , R.anim.fade_in , R.anim.fade_out)
-                        .add(R.id.container , episodeDetailsFragment).addToBackStack(null).commit();
+                        .replace(R.id.container , episodeDetailsFragment).addToBackStack(null).commit();
             }
         };
     }

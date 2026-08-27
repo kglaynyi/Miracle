@@ -30,8 +30,10 @@ import java.net.NoRouteToHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -129,15 +131,16 @@ public final class GdiJsIndexClient {
         }
     }
 
-    private static final class VideoEntry {
-        final String folderUrl;
-        final File file;
+    private static final class CachedEntry {
+        final boolean tv;
+        final Date modifiedTime;
 
-        VideoEntry(String folderUrl, File file) {
-            this.folderUrl = folderUrl;
-            this.file = file;
+        CachedEntry(boolean tv, Date modifiedTime) {
+            this.tv = tv;
+            this.modifiedTime = modifiedTime;
         }
     }
+
 
     public static Result validate(String rawBaseUrl, String username, String password) {
         try {
@@ -180,19 +183,28 @@ public final class GdiJsIndexClient {
 
         String apiRoot = getDefaultApiRoot(baseUrl);
         Set<String> visitedFolders = new HashSet<>();
-        int[] stats = new int[]{0, 0, 0, 0}; // folders, files, videos found, videos processed
+        Set<String> seenIds = new HashSet<>();
+        Map<String, CachedEntry> cache = buildScanCache(indexId);
+        int[] stats = new int[]{0, 0, 0, 0, 0}; // folders, files, videos, handled, cached
+
+        emit(listener, Progress.status("Loaded " + cache.size()
+                        + " cached media entries • scanning for changes…", -1,
+                0, 0, 0, 0, 0, 0));
 
         discoverAndProcessFolder(apiRoot, baseUrl, session.cookie, visitedFolders,
-                stats, indexId, tvShows, listener);
+                seenIds, cache, stats, indexId, tvShows, listener);
 
+        pruneMissingCachedMedia(cache, seenIds);
         int total = stats[2];
-        emit(listener, Progress.done("Done • " + total + " videos scanned",
+        emit(listener, Progress.done("Done • " + total + " videos • "
+                        + stats[4] + " reused from cache",
                 total, stats[0], stats[1]));
         return total;
     }
 
     private static void discoverAndProcessFolder(String folderUrl, String rootUrl, String cookie,
-                                                 Set<String> visitedFolders, int[] stats,
+                                                 Set<String> visitedFolders, Set<String> seenIds,
+                                                 Map<String, CachedEntry> cache, int[] stats,
                                                  int indexId, boolean selectedTvShows,
                                                  ProgressListener listener) throws Exception {
         if (stats[0] >= MAX_FOLDERS) {
@@ -216,7 +228,7 @@ public final class GdiJsIndexClient {
                     if (isFolder(file)) {
                         String child = appendPath(folderUrl, file.getName(), true);
                         discoverAndProcessFolder(child, rootUrl, cookie, visitedFolders,
-                                stats, indexId, selectedTvShows, listener);
+                                seenIds, cache, stats, indexId, selectedTvShows, listener);
                         continue;
                     }
 
@@ -224,12 +236,16 @@ public final class GdiJsIndexClient {
                     if (!isVideoFile(file)) continue;
 
                     stats[2]++;
-                    processVideo(rootUrl, folderUrl, file, selectedTvShows, indexId);
+                    String gdId = file.getId();
+                    if (gdId != null && !gdId.trim().isEmpty()) seenIds.add(gdId);
+                    boolean reused = processVideo(rootUrl, folderUrl, file,
+                            selectedTvShows, indexId, cache);
                     stats[3]++;
+                    if (reused) stats[4]++;
 
                     String message = "Scanning… " + stats[0] + " folders • "
                             + stats[1] + " files • " + stats[2] + " videos • "
-                            + stats[3] + " processed";
+                            + stats[4] + " cached";
                     emit(listener, Progress.status(message, -1, stats[3], stats[2],
                             Math.max(0, stats[2] - stats[3]), stats[0], stats[1], stats[2]));
                 }
@@ -485,20 +501,31 @@ public final class GdiJsIndexClient {
     DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
 }
 
-    private static void processVideo(String rootUrl, String folderUrl, File file,
-                                     boolean tvShows, int indexId) {
+    private static boolean processVideo(String rootUrl, String folderUrl, File file,
+                                        boolean tvShows, int indexId,
+                                        Map<String, CachedEntry> cache) {
         String id = file.getId();
         boolean treatAsTv = shouldTreatAsTv(folderUrl, file.getName(), tvShows);
 
-        // A previous scan may have incorrectly stored an episode as a Movie.
         if (id != null && !id.trim().isEmpty()) {
-            if (treatAsTv) {
+            CachedEntry cached = cache.get(id);
+            if (cached != null && cached.tv == treatAsTv && !isRemoteNewer(file.getModifiedTime(), cached.modifiedTime)) {
+                return true;
+            }
+
+            if (cached != null) {
+                if (cached.tv) {
+                    DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByGdId(id);
+                } else {
+                    DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
+                }
+                cache.remove(id);
+            } else if (treatAsTv) {
                 DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
             } else {
                 DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByGdId(id);
             }
         }
-        if (isAlreadyPresent(id, file.getModifiedTime())) return;
 
         String streamUrl = resolveFileUrl(rootUrl, folderUrl, file);
         if (treatAsTv) {
@@ -528,6 +555,52 @@ public final class GdiJsIndexClient {
                 movie.setTitle(title);
                 movie.setOriginal_title(title);
                 DatabaseClient.getInstance(context).getAppDatabase().movieDao().insert(movie);
+            }
+        }
+
+        if (id != null && !id.trim().isEmpty()) {
+            cache.put(id, new CachedEntry(treatAsTv, file.getModifiedTime()));
+        }
+        return false;
+    }
+
+    private static Map<String, CachedEntry> buildScanCache(int indexId) {
+        Map<String, CachedEntry> result = new HashMap<>();
+        DatabaseClient db = DatabaseClient.getInstance(context);
+
+        List<Movie> movies = db.getAppDatabase().movieDao().getAllFromIndex(indexId);
+        if (movies != null) {
+            for (Movie movie : movies) {
+                if (movie == null || movie.getGd_id() == null || movie.getGd_id().trim().isEmpty()) continue;
+                result.put(movie.getGd_id(), new CachedEntry(false, movie.getModifiedTime()));
+            }
+        }
+
+        List<Episode> episodes = db.getAppDatabase().episodeDao().getAllFromIndex(indexId);
+        if (episodes != null) {
+            for (Episode episode : episodes) {
+                if (episode == null || episode.getGd_id() == null || episode.getGd_id().trim().isEmpty()) continue;
+                result.put(episode.getGd_id(), new CachedEntry(true, episode.getModifiedTime()));
+            }
+        }
+        return result;
+    }
+
+    private static boolean isRemoteNewer(Date remote, Date cached) {
+        if (remote == null || cached == null) return false;
+        return remote.after(cached);
+    }
+
+    private static void pruneMissingCachedMedia(Map<String, CachedEntry> cache, Set<String> seenIds) {
+        if (cache == null || cache.isEmpty()) return;
+        DatabaseClient db = DatabaseClient.getInstance(context);
+        for (Map.Entry<String, CachedEntry> entry : cache.entrySet()) {
+            String id = entry.getKey();
+            if (id == null || seenIds.contains(id)) continue;
+            if (entry.getValue().tv) {
+                db.getAppDatabase().episodeDao().deleteByGdId(id);
+            } else {
+                db.getAppDatabase().movieDao().deleteByGdId(id);
             }
         }
     }
@@ -565,32 +638,6 @@ public final class GdiJsIndexClient {
         boolean numberOnlyEpisode = base.matches("(?i)^(?:e|ep|episode)?[ ._-]*\\d{1,3}(?:[ ._-].*)?$");
         boolean seasonFolder = lowerPath.matches(".*[/_-](?:season[ ._-]*|s)\\d{1,2}[/_-].*");
         return seriesFolder && (numberOnlyEpisode || seasonFolder);
-    }
-
-    private static boolean isAlreadyPresent(String id, Date modifiedTime) {
-        if (id == null || id.trim().isEmpty()) return false;
-
-        Movie movie = DatabaseClient.getInstance(context).getAppDatabase().movieDao().getByGdId(id);
-        Episode episode = DatabaseClient.getInstance(context).getAppDatabase().episodeDao().findByGdId(id);
-
-        if (movie != null) {
-            boolean needsFallbackRepair = !isTmdbConfigured()
-                    && (movie.getTitle() == null || movie.getTitle().trim().isEmpty());
-            boolean needsTmdbRefresh = isTmdbConfigured() && movie.getId() == 0;
-            boolean modified = modifiedTime != null && movie.getModifiedTime() != null
-                    && modifiedTime.after(movie.getModifiedTime());
-            if (needsFallbackRepair || needsTmdbRefresh || modified) {
-                DatabaseClient.getInstance(context).getAppDatabase().movieDao().deleteByGdId(id);
-                movie = null;
-            }
-        }
-
-        if (episode != null && modifiedTime != null && episode.getModifiedTime() != null
-                && modifiedTime.after(episode.getModifiedTime())) {
-            DatabaseClient.getInstance(context).getAppDatabase().episodeDao().deleteByGdId(id);
-            episode = null;
-        }
-        return movie != null || episode != null;
     }
 
     private static boolean isTmdbConfigured() {

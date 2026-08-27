@@ -63,6 +63,9 @@ public class AddNewIndexFragment extends BaseFragment {
 
         String[] folderTypes = mActivity.getResources().getStringArray(R.array.folder_types);
         folderTypeView.setAdapter(new ArrayAdapter<>(mActivity, R.layout.item_folder_type, folderTypes));
+        if (folderTypes.length > 0) {
+            folderTypeView.setText(folderTypes[0], false);
+        }
 
         save.setOnClickListener(v -> addIndex());
     }
@@ -87,7 +90,7 @@ public class AddNewIndexFragment extends BaseFragment {
             return;
         }
         if (folderType.isEmpty()) {
-            folderTypeView.setError("Select Movies or TVShows");
+            folderTypeView.setError("Select Movies + TV Shows, Movies, or TVShows");
             return;
         }
 

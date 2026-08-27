@@ -72,6 +72,9 @@ public interface MovieDao {
     @Query("SELECT * FROM Movie WHERE gd_id =:gd_id")
     Movie getByGdId(String gd_id);
 
+    @Query("SELECT * FROM Movie WHERE index_id=:indexId")
+    List<Movie> getAllFromIndex(int indexId);
+
     @Query("DELETE FROM Movie WHERE gd_id =:id")
     void deleteByGdId(String id);
 

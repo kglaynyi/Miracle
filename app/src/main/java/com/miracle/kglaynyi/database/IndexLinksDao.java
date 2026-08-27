@@ -36,4 +36,7 @@ public interface IndexLinksDao {
     @Query("Update indexlink set disabled=0 WHERE id=:index_id  ")
     void enableIndex(int index_id);
 
+    @Query("UPDATE IndexLink SET folderType=:folderType WHERE id=:indexId")
+    void updateFolderType(int indexId, String folderType);
+
 }
