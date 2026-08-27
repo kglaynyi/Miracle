@@ -8,6 +8,7 @@ import android.media.AudioManager;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.graphics.Insets;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -224,6 +225,11 @@ public class PlayerActivity extends AppCompatActivity
         });
 
         playerView.setControllerVisibilityListener(this);
+        playerView.setControllerShowTimeoutMs(3000);
+        playerView.setControllerAutoShow(true);
+        playerView.setControllerHideOnTouch(true);
+        makeExoControllerTransparent();
+        syncExoSafeControls();
         playerView.requestFocus();
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -421,8 +427,58 @@ public class PlayerActivity extends AppCompatActivity
         return (!usingVlc && playerView.dispatchKeyEvent(event)) || super.dispatchKeyEvent(event);
     }
 
-    @Override public void onVisibilityChanged(int visibility) {}
+    @Override
+    public void onVisibilityChanged(int visibility) {
+        if (usingVlc || exoSafeControls == null) return;
+        exoSafeControls.animate().cancel();
+        if (visibility == View.VISIBLE) {
+            exoSafeControls.setAlpha(1f);
+            exoSafeControls.setVisibility(View.VISIBLE);
+        } else {
+            exoSafeControls.animate()
+                    .alpha(0f)
+                    .setDuration(120L)
+                    .withEndAction(() -> {
+                        if (!usingVlc && exoSafeControls != null) {
+                            exoSafeControls.setVisibility(View.GONE);
+                            exoSafeControls.setAlpha(1f);
+                        }
+                    })
+                    .start();
+        }
+    }
+
     @Override public void onClick(View view) {}
+
+    private void syncExoSafeControls() {
+        if (exoSafeControls == null || playerView == null || usingVlc) return;
+        boolean visible = playerView.isControllerFullyVisible();
+        exoSafeControls.setAlpha(1f);
+        exoSafeControls.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    private void makeExoControllerTransparent() {
+        if (playerView == null) return;
+
+        // StyledPlayerView normally draws a large semi-transparent black layer
+        // and a bottom gradient whenever its controls/settings are visible.
+        // Keep only the controls themselves so the video remains fully visible.
+        clearPlayerOverlayBackground("exo_controls_background", true);
+        clearPlayerOverlayBackground("exo_bottom_bar", false);
+        clearPlayerOverlayBackground("exo_basic_controls", false);
+        clearPlayerOverlayBackground("exo_extra_controls", false);
+    }
+
+    private void clearPlayerOverlayBackground(String idName, boolean hideView) {
+        int id = getResources().getIdentifier(idName, "id", getPackageName());
+        if (id == 0) return;
+        View target = playerView.findViewById(id);
+        if (target == null) return;
+        target.setBackgroundColor(Color.TRANSPARENT);
+        if (hideView) {
+            target.setAlpha(0f);
+        }
+    }
 
     protected boolean initializePlayer() {
         if (player != null || usingVlc) return true;
@@ -470,7 +526,8 @@ public class PlayerActivity extends AppCompatActivity
         vlcVideoLayout.setVisibility(View.GONE);
         vlcController.setVisibility(View.GONE);
         decoderBadge.setVisibility(View.GONE);
-        exoViewMode.setVisibility(View.VISIBLE);
+        makeExoControllerTransparent();
+        syncExoSafeControls();
         applyViewMode();
 
         player.setMediaItem(mediaItem);
@@ -510,7 +567,7 @@ public class PlayerActivity extends AppCompatActivity
 
         usingVlc = true;
         playerView.setVisibility(View.GONE);
-        exoViewMode.setVisibility(View.GONE);
+        if (exoSafeControls != null) exoSafeControls.setVisibility(View.GONE);
         vlcVideoLayout.setVisibility(View.VISIBLE);
         vlcController.setVisibility(View.VISIBLE);
         decoderBadge.setVisibility(View.VISIBLE);
@@ -594,7 +651,7 @@ public class PlayerActivity extends AppCompatActivity
         softwareFallbackScheduled = false;
         if (vlcController != null) vlcController.setVisibility(View.GONE);
         if (decoderBadge != null) decoderBadge.setVisibility(View.GONE);
-        if (exoViewMode != null) exoViewMode.setVisibility(View.VISIBLE);
+        if (exoSafeControls != null) exoSafeControls.setVisibility(View.GONE);
     }
 
     private void updateTrackSelectorParameters() {
