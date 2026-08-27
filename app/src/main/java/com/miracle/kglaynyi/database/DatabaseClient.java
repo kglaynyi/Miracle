@@ -18,8 +18,8 @@ public class DatabaseClient {
     private static final Migration MIGRATION_31_32 = new Migration(31, 32) {
         @Override
         public void migrate(SupportSQLiteDatabase database) {
-            database.execSQL("ALTER TABLE Movie ADD COLUMN folder_path TEXT NOT NULL DEFAULT ''");
-            database.execSQL("ALTER TABLE Episode ADD COLUMN folder_path TEXT NOT NULL DEFAULT ''");
+            database.execSQL("ALTER TABLE Movie ADD COLUMN folder_path TEXT DEFAULT ''");
+            database.execSQL("ALTER TABLE Episode ADD COLUMN folder_path TEXT DEFAULT ''");
         }
     };
 
