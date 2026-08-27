@@ -67,6 +67,7 @@ public class MovieDetailsFragment extends BaseFragment{
     TextView runtime;
     ImageButton play;
     ImageButton changeSource;
+    ImageButton identifyMovie;
     ImageButton addToList;
     ImageButton download;
     TextView overview;
@@ -170,6 +171,7 @@ public class MovieDetailsFragment extends BaseFragment{
         download = view.findViewById(R.id.downloadButton);
         addToList = view.findViewById(R.id.addToListButton);
         changeSource = view.findViewById(R.id.changeSourceButton);
+        identifyMovie = view.findViewById(R.id.identifyMovieButton);
 //        changeTMDB = view.findViewById(R.id.changeTMDBId);
 
 //        blurView = view.findViewById(R.id.blurView4);
@@ -440,6 +442,19 @@ public class MovieDetailsFragment extends BaseFragment{
             }
         });
 
+
+        identifyMovie.setOnClickListener(v -> {
+            if (movieDetails == null) {
+                Toast.makeText(mActivity, "Movie details are still loading", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            ChangeTMDBFragment changeTMDBFragment = new ChangeTMDBFragment(movieDetails);
+            mActivity.getSupportFragmentManager().beginTransaction()
+                    .setCustomAnimations(R.anim.fade_in, R.anim.fade_out, R.anim.fade_in, R.anim.fade_out)
+                    .add(R.id.container, changeTMDBFragment)
+                    .addToBackStack(null)
+                    .commit();
+        });
 
         addToList.setOnClickListener(new View.OnClickListener() {
             @Override

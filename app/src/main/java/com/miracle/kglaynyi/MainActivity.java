@@ -7,6 +7,8 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,6 +29,7 @@ import com.miracle.kglaynyi.fragments.LibraryFragment;
 import com.miracle.kglaynyi.fragments.SearchFragment;
 import com.miracle.kglaynyi.fragments.SettingsFragment;
 import com.miracle.kglaynyi.utils.RefreshWorker;
+import com.miracle.kglaynyi.utils.IndexUtils;
 
 import java.util.Calendar;
 import java.util.concurrent.TimeUnit;
@@ -61,6 +64,12 @@ public class MainActivity extends AppCompatActivity {
         setUpBottomNavigationView();
 
         getSupportFragmentManager().beginTransaction().replace(R.id.container, homeFragment).commit();
+
+        if (savedInstanceState == null) {
+            new Handler(Looper.getMainLooper()).postDelayed(
+                    () -> IndexUtils.refreshEnabledIndexesOnStartup(getApplicationContext()),
+                    750L);
+        }
 
         checkForUpdates(this);
 

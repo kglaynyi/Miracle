@@ -75,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          NOTES="Adds genre browsing, video resume, swipe volume, double-tap 10s seeking, HEVC software fallback, smoother high/low-refresh UI, and lightweight selection animations."
+          NOTES="Faster HEVC software fallback, audio/subtitle selection in software playback, Continue Watching on Home, movie Identify/change TMDB ID, and cache-first automatic source refresh on app startup."
           if gh release view "$VERSION" >/dev/null 2>&1; then
             gh release upload "$VERSION" "Miracle-${VERSION}.apk" --clobber\n            gh release edit "$VERSION" --title "Miracle $VERSION" --notes "$NOTES"
           else
