@@ -257,7 +257,7 @@ public class FileItemAdapter extends RecyclerView.Adapter<FileItemAdapter.FileIt
                 intent.putExtra(PlayerActivity.EXTRA_QUALITY_LABELS, labels.toArray(new String[0]));
             }
 
-            private String buildQualityLabel(String fileName, int sourceNumber) {
+            private String buildQualityLabel(String fileName, String url, int sourceNumber) {
                 String quality = fileName == null ? null : MovieQualityExtractor.extractQualtiy(fileName);
                 String lower = fileName == null ? "" : fileName.toLowerCase(Locale.US);
                 String codec = "";
@@ -266,8 +266,11 @@ public class FileItemAdapter extends RecyclerView.Adapter<FileItemAdapter.FileIt
                 } else if (lower.contains("x264") || lower.contains("h264") || lower.contains("h.264") || lower.contains("avc")) {
                     codec = " • H.264";
                 }
-                if (quality != null && !quality.trim().isEmpty()) return quality + codec;
-                return "Source " + sourceNumber + codec;
+                String source = "";
+                if (url != null && url.startsWith("content://")) source = " • Drive";
+                else if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) source = " • GDI-JS";
+                if (quality != null && !quality.trim().isEmpty()) return quality + codec + source;
+                return "Source " + sourceNumber + codec + source;
             }
 
             private void downloadMedia(String url) {
